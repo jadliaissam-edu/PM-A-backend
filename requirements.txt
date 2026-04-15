@@ -2,3 +2,5 @@ asgiref==3.11.1
 Django==6.0.4
 sqlparse==0.5.5
 python-dotenv
+djangorestframework-simplejwt 
+django-cors-headers

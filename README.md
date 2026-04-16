@@ -1,5 +1,9 @@
 # PM-A-backend
 
+## API Reference
+
+See [API_REFERENCE.md](API_REFERENCE.md) for request and response examples for the current backend endpoints.
+
 ## Setup
 
 ```bash

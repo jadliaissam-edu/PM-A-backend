@@ -1,3 +1,4 @@
+
 from datetime import timedelta
 import random
 
@@ -6,68 +7,88 @@ from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
+from django.template.loader import render_to_string
 from django.utils import timezone
 from rest_framework import generics
-from rest_framework import serializers
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import PasswordResetOTP
+from .serializer import (
+    PasswordResetConfirmSerializer,
+    PasswordResetRequestSerializer,
+    PasswordResetVerifyOTPSerializer,
+    RegisterSerializer,
+)
 
-# Register 
-class RegisterSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = ['username', 'email', 'password']
-        extra_kwargs = {'password': {'write_only': True}}
-    
-    def create(self, validated_data): 
-        user = User.objects.create_user(
-            username=validated_data['username'], 
-            email=validated_data['email'], 
-            password=validated_data['password'],
-             ) 
-        return user 
-    
 class RegisterView(generics.CreateAPIView):
-    serializer_class = RegisterSerializer 
+    serializer_class = RegisterSerializer
 
 class PasswordResetRequestView(APIView):
     def post(self, request):
-        email = request.data.get('email')
-        if not email:
-            return Response({'error': 'Email is required.'}, status=status.HTTP_400_BAD_REQUEST)
-
+        serializer = PasswordResetRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data['email']
         try:
             user = User.objects.get(email=email)
         except User.DoesNotExist:
             # Do not reveal whether a user exists for this email.
-            return Response({'message': 'If the email exists, an OTP has been generated.'}, status=status.HTTP_200_OK)
-
+            return Response(
+                {
+                    'email': email,
+                    'message': 'If the email exists, an OTP has been generated.',
+                },
+                status=status.HTTP_200_OK,
+            )
+    
         otp_code = f"{random.randint(0, 999999):06d}"
         expires_at = timezone.now() + timedelta(minutes=settings.OTP_EXPIRE_MINUTES)
 
         PasswordResetOTP.objects.filter(user=user, is_used=False).update(is_used=True)
         PasswordResetOTP.objects.create(user=user, otp_code=otp_code, expires_at=expires_at)
 
+        plain_message = (
+            f"Hello {user.username},\n\n"
+            f"Your OTP for password reset is: {otp_code}\n"
+            f"This OTP will expire in {settings.OTP_EXPIRE_MINUTES} minutes.\n\n"
+            "If you did not request this, ignore this email."
+        )
+        html_message = render_to_string(
+            'accounts/emails/password_reset_otp.html',
+            {
+                'username': user.username,
+                'otp_code': otp_code,
+                'otp_expire_minutes': settings.OTP_EXPIRE_MINUTES,
+            },
+        )
+
         try:
             send_mail(
                 subject='Your password reset OTP',
-                message=(
-                    f"Hello {user.username},\n\n"
-                    f"Your OTP for password reset is: {otp_code}\n"
-                    f"This OTP will expire in {settings.OTP_EXPIRE_MINUTES} minutes.\n\n"
-                    "If you did not request this, ignore this email."
-                ),
+                message=plain_message,
                 from_email=settings.DEFAULT_FROM_EMAIL,
                 recipient_list=[user.email],
                 fail_silently=False,
+                html_message=html_message,
             )
         except Exception:
+            # In dev mode, still return OTP so frontend flow can continue without SMTP.
+            if settings.OTP_DEV_RETURN_OTP:
+                return Response(
+                    {
+                        'email': email,
+                        'message': 'OTP generated, but email sending failed. Using dev OTP response.',
+                        'expires_in_minutes': settings.OTP_EXPIRE_MINUTES,
+                        'otp': otp_code,
+                    },
+                    status=status.HTTP_200_OK,
+                )
+
             return Response({'error': 'Failed to send OTP email.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         response_data = {
+            'email': email,
             'message': 'OTP generated successfully and sent to email.',
             'expires_in_minutes': settings.OTP_EXPIRE_MINUTES,
         }
@@ -79,11 +100,10 @@ class PasswordResetRequestView(APIView):
 
 class PasswordResetVerifyOTPView(APIView):
     def post(self, request):
-        email = request.data.get('email')
-        otp = request.data.get('otp')
-
-        if not email or not otp:
-            return Response({'error': 'email and otp are required.'}, status=status.HTTP_400_BAD_REQUEST)
+        serializer = PasswordResetVerifyOTPSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data['email']
+        otp = serializer.validated_data['otp']
 
         try:
             user = User.objects.get(email=email)
@@ -104,15 +124,11 @@ class PasswordResetVerifyOTPView(APIView):
 
 class PasswordResetConfirmView(APIView):
     def post(self, request):
-        email = request.data.get('email')
-        otp = request.data.get('otp')
-        new_password = request.data.get('new_password')
-
-        if not email or not otp or not new_password:
-            return Response(
-                {'error': 'email, otp and new_password are required.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        serializer = PasswordResetConfirmSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data['email']
+        otp = serializer.validated_data['otp']
+        new_password = serializer.validated_data['new_password']
 
         try:
             user = User.objects.get(email=email)

@@ -55,6 +55,8 @@ INSTALLED_APPS = [
     'core', 
     ## jwt authentication 
     'corsheaders', 
+    ## debug toolbar 
+    "debug_toolbar",
 ]
 
 REST_FRAMEWORK = { 
@@ -77,6 +79,8 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     # cors headers middleware
     'corsheaders.middleware.CorsMiddleware',
+    # debug toolbar middleware 
+    "debug_toolbar.middleware.DebugToolbarMiddleware", 
 ]
 
 # CORS settings

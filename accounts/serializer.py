@@ -16,6 +16,15 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
     new_password = serializers.CharField(write_only=True)
 
 
+class MFASetupSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
+class MFAVerifySerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    token = serializers.CharField(max_length=6)
+
+
 class RegisterSerializer(serializers.ModelSerializer):
     class Meta:
         model = User

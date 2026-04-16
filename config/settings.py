@@ -31,8 +31,8 @@ DEBUG = env_bool('DEBUG', True)
 
 ALLOWED_HOSTS = [host.strip() for host in os.getenv('ALLOWED_HOSTS', '127.0.0.1,localhost').split(',') if host.strip()]
 
-# Si tu utilises un modèle User personnalisé dans jira_back_end
-AUTH_USER_MODEL = 'jira_back_end.User'
+# Current backend uses Django's default user model.
+AUTH_USER_MODEL = 'auth.User'
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -145,5 +145,5 @@ OTP_EXPIRE_MINUTES = int(os.getenv('OTP_EXPIRE_MINUTES', 10))
 OTP_DEV_RETURN_OTP = env_bool('OTP_DEV_RETURN_OTP', DEBUG)
 
 # Fichiers médias (si tu veux gérer des uploads)
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / "media"
+#MEDIA_URL = '/media/'
+#MEDIA_ROOT = BASE_DIR / "media"

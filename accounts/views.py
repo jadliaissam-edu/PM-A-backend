@@ -14,8 +14,11 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import PasswordResetOTP
+from .models import MFaConfig, PasswordResetOTP
+from .services.mfa_service import generate_mfa_secret, generate_qr_url, verify_mfa_token
 from .serializer import (
+    MFASetupSerializer,
+    MFAVerifySerializer,
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
     PasswordResetVerifyOTPSerializer,
@@ -156,6 +159,72 @@ class PasswordResetConfirmView(APIView):
         otp_record.save(update_fields=['is_used'])
 
         return Response({'message': 'Password reset successful.'}, status=status.HTTP_200_OK)
+
+
+class MFASetupView(APIView):
+    def post(self, request):
+        serializer = MFASetupSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data['email']
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        mfa_config, _ = MFaConfig.objects.get_or_create(
+            user=user,
+            defaults={'method': 'authenticator'},
+        )
+
+        if not mfa_config.secret:
+            mfa_config.secret = generate_mfa_secret()
+            mfa_config.method = 'authenticator'
+            mfa_config.is_enabled = False
+            mfa_config.save(update_fields=['secret', 'method', 'is_enabled'])
+
+        qr_url = generate_qr_url(user.email, mfa_config.secret)
+
+        return Response(
+            {
+                'email': email,
+                'method': mfa_config.method,
+                'is_enabled': mfa_config.is_enabled,
+                'qr_url': qr_url,
+                'secret': mfa_config.secret,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class MFAVerifyView(APIView):
+    def post(self, request):
+        serializer = MFAVerifySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data['email']
+        token = serializer.validated_data['token']
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            mfa_config = MFaConfig.objects.get(user=user, method='authenticator')
+        except MFaConfig.DoesNotExist:
+            return Response({'error': 'MFA setup not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if not mfa_config.secret:
+            return Response({'error': 'MFA secret missing. Setup MFA first.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not verify_mfa_token(mfa_config.secret, token):
+            return Response({'error': 'Invalid MFA token.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not mfa_config.is_enabled:
+            mfa_config.is_enabled = True
+            mfa_config.save(update_fields=['is_enabled'])
+
+        return Response({'message': 'MFA verified and enabled.'}, status=status.HTTP_200_OK)
 
 
 

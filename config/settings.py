@@ -119,12 +119,6 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
-# Fichiers statiques
-STATIC_URL = 'static/'
-STATICFILES_DIRS = [BASE_DIR / "static"]  # optionnel
-
-
-# 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
@@ -144,6 +138,12 @@ DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER or 'no-repl
 OTP_EXPIRE_MINUTES = int(os.getenv('OTP_EXPIRE_MINUTES', 10))
 OTP_DEV_RETURN_OTP = env_bool('OTP_DEV_RETURN_OTP', DEBUG)
 
-# Fichiers médias (si tu veux gérer des uploads)
-#MEDIA_URL = '/media/'
-#MEDIA_ROOT = BASE_DIR / "media"
+# Static and media files
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+

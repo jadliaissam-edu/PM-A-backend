@@ -138,3 +138,12 @@ DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER or 'no-repl
 OTP_EXPIRE_MINUTES = int(os.getenv('OTP_EXPIRE_MINUTES', 10))
 OTP_DEV_RETURN_OTP = env_bool('OTP_DEV_RETURN_OTP', DEBUG)
 
+# Static and media files
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+

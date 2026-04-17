@@ -13,6 +13,8 @@ from rest_framework import generics
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.views import TokenObtainPairView
+from .serializer import EmailTokenObtainPairSerializer
 
 from .models import MFAConfig, PasswordResetOTP
 from .services.mfa_service import generate_mfa_secret, generate_qr_url, verify_mfa_token
@@ -226,7 +228,5 @@ class MFAVerifyView(APIView):
 
         return Response({'message': 'MFA verified and enabled.'}, status=status.HTTP_200_OK)
 
-
-
-
-    
+class EmailTokenObtainPairView(TokenObtainPairView):
+    serializer_class = EmailTokenObtainPairSerializer

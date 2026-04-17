@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     'corsheaders', 
     ## debug toolbar 
     "debug_toolbar",
+    'drf_spectacular', 
 ]
 
 REST_FRAMEWORK = { 

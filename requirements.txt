@@ -9,3 +9,4 @@ django-oauth-toolkit
 pyotp 
 qrcode 
 pillow
+drf-spectacular

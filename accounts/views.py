@@ -14,7 +14,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import MFaConfig, PasswordResetOTP
+from .models import MFAConfig, PasswordResetOTP
 from .services.mfa_service import generate_mfa_secret, generate_qr_url, verify_mfa_token
 from .serializer import (
     MFASetupSerializer,
@@ -172,7 +172,7 @@ class MFASetupView(APIView):
         except User.DoesNotExist:
             return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        mfa_config, _ = MFaConfig.objects.get_or_create(
+        mfa_config, _ = MFAConfig.objects.get_or_create(
             user=user,
             defaults={'method': 'authenticator'},
         )
@@ -210,8 +210,8 @@ class MFAVerifyView(APIView):
             return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
 
         try:
-            mfa_config = MFaConfig.objects.get(user=user, method='authenticator')
-        except MFaConfig.DoesNotExist:
+            mfa_config = MFAConfig.objects.get(user=user, method='authenticator')
+        except MFAConfig.DoesNotExist:
             return Response({'error': 'MFA setup not found.'}, status=status.HTTP_404_NOT_FOUND)
 
         if not mfa_config.secret:

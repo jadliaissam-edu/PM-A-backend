@@ -1,3 +1,7 @@
 from django.contrib import admin
 
-# Register your models here.
+from .models import MFAConfig, PasswordResetOTP
+
+
+admin.site.register(PasswordResetOTP)
+admin.site.register(MFAConfig)

@@ -13,8 +13,6 @@ from .views import (
     ProjectListCreateView,
     ProjectMembersView,
     RecentProjectsView,
-    RoleDetailView,
-    RoleListCreateView,
     UserDetailView,
     health_check,
 )
@@ -34,6 +32,4 @@ urlpatterns = [
     path('projects/<uuid:project_id>/board/', BoardView.as_view(), name='project-board'),
     path('projects/<uuid:project_id>/board/columns/', BoardColumnCreateView.as_view(), name='board-column-create'),
     path('board/columns/<uuid:column_id>/', BoardColumnDetailView.as_view(), name='board-column-detail'),
-    path('projects/<uuid:project_id>/roles/', RoleListCreateView.as_view(), name='project-roles'),
-    path('projects/<uuid:project_id>/roles/<uuid:role_id>/', RoleDetailView.as_view(), name='project-role-detail'),
 ]

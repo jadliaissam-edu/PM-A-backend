@@ -45,7 +45,8 @@ INSTALLED_APPS = [
     'rest_framework',
     # our app 
     'accounts',
-    'core', 
+    'project',
+    'role',
     ## jwt authentication 
     'corsheaders', 
     ## debug toolbar 
@@ -59,7 +60,8 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.AllowAny',
-    ]
+    ],
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     }
 
 MIDDLEWARE = [
@@ -147,3 +149,10 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+
+# swagger add  settings for API documentation 
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'My API',
+    'DESCRIPTION': 'API for my project',
+    'VERSION': '1.0.0',
+}

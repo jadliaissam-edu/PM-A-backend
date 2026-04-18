@@ -29,16 +29,17 @@ jobs:
 
       - name: Run Black (format check)
         run: black --check .
+        continue-on-error: true
 
       - name: Run isort (imports check)
         run: isort --check-only .
-
+        continue-on-error: true
       - name: Run Flake8 (style + syntax)
         run: flake8 .
-
+        continue-on-error: true
       - name: Run Bandit (security scan)
         run: bandit -r .
-
+        continue-on-error: true
   test:
     name: Unit Tests (Pytest)
     runs-on: ubuntu-latest

@@ -8,6 +8,6 @@ urlpatterns = [
     path('comments/<uuid:id>/', CommentupdateView.as_view()),
     path('comments/<uuid:id>/delete/', CommentDeleteView.as_view()),
     path('comments/<uuid:commentId>/reactions/', ReactionListView.as_view()),
-path('comments/<uuid:commentId>/reactions/add/', ReactionCreateView.as_view()),
-path('comments/<uuid:commentId>/reactions/<uuid:id>/', ReactionDeleteView.as_view()),
+    path('comments/<uuid:commentId>/reactions/add/', ReactionCreateView.as_view()),
+    path('comments/<uuid:commentId>/reactions/<uuid:id>/', ReactionDeleteView.as_view()),
     ]   

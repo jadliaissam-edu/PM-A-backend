@@ -139,3 +139,28 @@ class TicketLink(models.Model):
 
     class Meta:
         unique_together = ('source_ticket', 'target_ticket', 'link_type')
+
+class TimeEntry(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    ticket = models.ForeignKey(
+        'tickets.Ticket',
+        on_delete=models.CASCADE,
+        related_name='time_entries'
+    )
+
+    user = models.ForeignKey(
+        'accounts.User',
+        on_delete=models.CASCADE,
+        related_name='time_entries'
+    )
+
+    hours_spent = models.FloatField()
+    comment = models.TextField(blank=True)
+
+    started_at = models.DateTimeField()
+    ended_at = models.DateTimeField()
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    

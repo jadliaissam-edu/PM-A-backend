@@ -47,17 +47,15 @@ INSTALLED_APPS = [
     'accounts',
     'project',
     'role',
+    'tickets',
+    'collaboration',
+    'boards',
     ## jwt authentication 
     'corsheaders', 
     ## debug toolbar 
     "debug_toolbar",
     'drf_spectacular', 
-    # 'accounts',
     # 'orgs',
-    # 'projects',
-    # 'tickets',
-    # 'boards',
-    # 'collaboration',
     # 'core',
 ]
 

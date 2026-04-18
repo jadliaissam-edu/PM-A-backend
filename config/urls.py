@@ -27,6 +27,8 @@ from drf_spectacular.views import (
     SpectacularRedocView,
 )
 from rest_framework_simplejwt.views import TokenVerifyView
+from django.conf.urls.static import static 
+from config import settings
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/login/', TokenObtainPairView.as_view(), name='token_obtain_pair_legacy'),
@@ -46,3 +48,6 @@ urlpatterns = [
 
     
 ]
+# For serving media files during development  (only in dev mode)
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

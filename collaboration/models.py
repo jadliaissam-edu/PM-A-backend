@@ -1,49 +1,15 @@
-from django.db import models
-import uuid 
-class Comment(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-
-    ticket = models.ForeignKey(
-        'tickets.Ticket',
-        on_delete=models.CASCADE,
-        related_name='comments'
-    )
-
-    author = models.ForeignKey(
-        'accounts.User',
-        on_delete=models.CASCADE,
-        related_name='comments'
-    )
-
-    body = models.TextField()
-
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        ordering = ['created_at']
-
 import uuid
 from django.db import models
+from django.conf import settings
 
-
-class CommentMention(models.Model):
+class Comment(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-
-    comment = models.ForeignKey(
-        'collaboration.Comment',
-        on_delete=models.CASCADE,
-        related_name='mentions'
-    )
-
-    user = models.ForeignKey(
-        'accounts.User',
-        on_delete=models.CASCADE,
-        related_name='mentioned_in_comments'
-    )
+    ticket = models.ForeignKey('tickets.Ticket', on_delete=models.CASCADE, related_name='comments')
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='comments')
+    body = models.TextField()
+    mentions = models.JSONField(default=list, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    class Meta:
-        unique_together = ('comment', 'user')
+    updated_at = models.DateTimeField(auto_now=True)
 
 class ReactionType(models.TextChoices):
     LIKE = "like", "Like"
@@ -51,27 +17,10 @@ class ReactionType(models.TextChoices):
     LAUGH = "laugh", "Laugh"
     EYES = "eyes", "Eyes"
     ROCKET = "rocket", "Rocket"
+
 class Reaction(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-
-    comment = models.ForeignKey(
-        'collaboration.Comment',
-        on_delete=models.CASCADE,
-        related_name='reactions'
-    )
-
-    user = models.ForeignKey(
-        'accounts.User',
-        on_delete=models.CASCADE,
-        related_name='reactions'
-    )
-
-    reaction_type = models.CharField(
-        max_length=20,
-        choices=ReactionType.choices
-    )
-
+    comment = models.ForeignKey(Comment, on_delete=models.CASCADE, related_name='reactions')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='reactions')
+    type = models.CharField(max_length=50, choices=ReactionType.choices, default=ReactionType.LIKE)
     created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        unique_together = ('comment', 'user', 'reaction_type')

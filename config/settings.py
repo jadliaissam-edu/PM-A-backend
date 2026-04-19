@@ -55,8 +55,8 @@ INSTALLED_APPS = [
     ## debug toolbar 
     "debug_toolbar",
     'drf_spectacular', 
-    # 'orgs',
-    # 'core',
+    'orgs',
+    'core',
 ]
 
 REST_FRAMEWORK = { 

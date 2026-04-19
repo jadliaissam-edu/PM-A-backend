@@ -37,13 +37,20 @@ class Ticket(models.Model):
         related_name='tickets'
     )
 
+    release = models.ForeignKey(
+        'project.Release',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='tickets'
+    )
     title = models.CharField(max_length=255) 
-    description = models.TextField(blank=True) 
+    description_markdown = models.TextField(blank=True) 
     type = models.CharField(max_length=50, choices=TicketType.choices) 
     status = models.CharField(max_length=50, default='open', choices=TicketStatus.choices) 
     priority = models.CharField(max_length=50, default='', choices=TicketPriority.choices) 
-    estimated_days = models.PositiveIntegerField(default=0) 
-    estimated_hours = models.PositiveIntegerField(default=0) 
+    estimate_story_points = models.FloatField(default=0.0) 
+    estimate_hours = models.FloatField(default=0.0) 
     created_at = models.DateTimeField(auto_now_add=True) 
 
     class Meta: 
@@ -155,30 +162,6 @@ class TicketLink(models.Model):
     class Meta:
         unique_together = ('source_ticket', 'target_ticket', 'link_type')
 
-class TimeEntry(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-
-    ticket = models.ForeignKey(
-        'tickets.Ticket',
-        on_delete=models.CASCADE,
-        related_name='time_entries'
-    )
-
-    user = models.ForeignKey(
-        'accounts.User',
-        on_delete=models.CASCADE,
-        related_name='time_entries'
-    )
-
-    hours_spent = models.FloatField()
-    comment = models.TextField(blank=True)
-
-    started_at = models.DateTimeField()
-    ended_at = models.DateTimeField()
-
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    
 
 class TicketMovement(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

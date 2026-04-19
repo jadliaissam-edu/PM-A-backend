@@ -43,13 +43,13 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     # rest framework 
     'rest_framework',
+    'rest_framework_simplejwt.token_blacklist',
     # our app 
     'accounts',
     'project',
     'role',
     'tickets',
     'collaboration',
-    'boards',
     ## jwt authentication 
     'corsheaders', 
     ## debug toolbar 

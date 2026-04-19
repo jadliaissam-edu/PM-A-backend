@@ -1,5 +1,5 @@
 from django.db import models
-
+import uuid 
 class Comment(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
@@ -41,7 +41,7 @@ class CommentMention(models.Model):
         on_delete=models.CASCADE,
         related_name='mentioned_in_comments'
     )
-
+    created_at = models.DateTimeField(auto_now_add=True)
     class Meta:
         unique_together = ('comment', 'user')
 

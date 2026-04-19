@@ -40,3 +40,44 @@ class BoardColumn(models.Model):
 	class Meta:
 		ordering = ['position', 'name']
 		db_table = 'core_boardcolumn'
+		
+class SprintStatus(models.TextChoices):
+    PLANNED = "planned", "Planned"
+    ACTIVE = "active", "Active"
+    CLOSED = "closed", "Closed"
+
+
+class Sprint(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    board = models.ForeignKey(
+        'project.ProjectBoard',
+        on_delete=models.CASCADE,
+        related_name='sprints'
+    )
+
+    name = models.CharField(max_length=255)
+
+    start_date = models.DateField()
+    end_date = models.DateField()
+
+    status = models.CharField(
+        max_length=20,
+        choices=SprintStatus.choices,
+        default=SprintStatus.PLANNED
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "core_sprint"
+        ordering = ["-start_date"]
+		
+class BoardFilter(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    board = models.ForeignKey("project.ProjectBoard", on_delete=models.CASCADE)
+
+    assignees = models.ManyToManyField("accounts.User", blank=True)
+    labels = models.ManyToManyField("tickets.TicketLabel", blank=True)
+
+    priorities = models.JSONField(default=list, blank=True)

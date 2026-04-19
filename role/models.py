@@ -31,3 +31,7 @@ class Role(models.Model):
 	class Meta:
 		unique_together = ('project', 'user', 'role_name')
 		db_table = 'core_role'
+		
+class RolePermission(models.Model):
+    role = models.ForeignKey(Role, on_delete=models.CASCADE)
+    permission = models.CharField(max_length=100)

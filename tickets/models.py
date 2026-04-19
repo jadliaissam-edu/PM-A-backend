@@ -2,10 +2,41 @@ import uuid
 
 from django.db import models
 
+class TicketType(models.TextChoices):
+    BUG = "bug", "Bug"
+    FEATURE = "feature", "Feature"
+    TASK = "task", "Task"
+
+
+class TicketPriority(models.TextChoices):
+    LOW = "low", "Low"
+    MEDIUM = "medium", "Medium"
+    HIGH = "high", "High"
+    CRITICAL = "critical", "Critical"
+
+class TicketStatus(models.TextChoices):
+    TODO = "todo", "To Do"
+    IN_PROGRESS = "in_progress", "In Progress"
+    DONE = "done", "Done"
 
 class Ticket(models.Model): 
     id = models.UUIDField(primary_key=True , default= uuid.uuid4, editable=False ) 
     project = models.ForeignKey('project.Project', on_delete=models.CASCADE, related_name='tickets') 
+    current_column = models.ForeignKey(
+        'project.BoardColumn',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='tickets'
+    )
+    sprint = models.ForeignKey(
+        'project.Sprint',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='tickets'
+    )
+
     title = models.CharField(max_length=255) 
     description = models.TextField(blank=True) 
     type = models.CharField(max_length=50, choices=TicketType.choices) 
@@ -21,22 +52,6 @@ class Ticket(models.Model):
 
 
 
-
-class TicketType(models.TextChoices):
-    BUG = "bug", "Bug"
-    FEATURE = "feature", "Feature"
-    TASK = "task", "Task"
-
-class TicketPriority(models.TextChoices):
-    LOW = "low", "Low"
-    MEDIUM = "medium", "Medium"
-    HIGH = "high", "High"
-    CRITICAL = "critical", "Critical"
-
-class TicketStatus(models.TextChoices):
-    TODO = "todo", "To Do"
-    IN_PROGRESS = "in_progress", "In Progress"
-    DONE = "done", "Done"
 
 
 
@@ -164,3 +179,82 @@ class TimeEntry(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     
+
+class TicketMovement(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    ticket = models.ForeignKey(
+        'tickets.Ticket',
+        on_delete=models.CASCADE,
+        related_name='movements'
+    )
+
+    from_column = models.ForeignKey(
+        'project.BoardColumn',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='moved_from'
+    )
+
+    to_column = models.ForeignKey(
+        'project.BoardColumn',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='moved_to'
+    )
+
+    moved_by = models.ForeignKey(
+        'accounts.User',
+        on_delete=models.SET_NULL,
+        null=True
+    )
+
+    moved_at = models.DateTimeField(auto_now_add=True)
+
+    move_type = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True
+    )
+
+    class Meta:
+        db_table = "core_ticket_movement"
+        ordering = ["-moved_at"]
+        indexes = [
+            models.Index(fields=["ticket", "moved_at"]),
+        ]
+
+
+class TimeEntry(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    ticket = models.ForeignKey(
+        'tickets.Ticket',
+        on_delete=models.CASCADE,
+        related_name='time_entries'
+    )
+
+    user = models.ForeignKey(
+        'accounts.User',
+        on_delete=models.CASCADE,
+        related_name='time_entries'
+    )
+
+    hours_spent = models.FloatField()
+
+    comment = models.TextField(blank=True)
+
+    started_at = models.DateTimeField()
+
+    ended_at = models.DateTimeField()
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "core_time_entry"
+        ordering = ["-started_at"]
+        indexes = [
+            models.Index(fields=["ticket", "started_at"]),
+            models.Index(fields=["user", "started_at"]),
+        ]
+

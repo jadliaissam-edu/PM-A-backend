@@ -20,3 +20,15 @@ class UserAuditLog(models.Model):
     target_type = models.CharField(max_length=255)
     target_id = models.UUIDField()
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+class Space(models.Model):
+    name = models.CharField(max_length=100)
+    description = models.TextField()
+    members = models.IntegerField(default=0)
+    tasks = models.IntegerField(default=0)
+    updated = models.CharField(max_length=100)
+    status = models.CharField(max_length=50)
+
+    # store Tailwind class (or better: compute later)
+    color = models.CharField(max_length=100)

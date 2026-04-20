@@ -1,9 +1,11 @@
-import uuid
 
+import uuid
 from django.conf import settings
 from django.db import models
 
-
+# =========================
+# Role Model
+# =========================
 class Role(models.Model):
 	CHEF_DE_PROJECT = 'chef_de_project'
 	ADMIN = 'admin'
@@ -31,7 +33,10 @@ class Role(models.Model):
 	class Meta:
 		unique_together = ('project', 'user', 'role_name')
 		db_table = 'core_role'
-		
+
+# =========================
+# Role Permission Model
+# =========================
 class RolePermission(models.Model):
-    role = models.ForeignKey(Role, on_delete=models.CASCADE)
-    permission = models.CharField(max_length=100)
+	role = models.ForeignKey(Role, on_delete=models.CASCADE)
+	permission = models.CharField(max_length=100)

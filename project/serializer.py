@@ -1,7 +1,8 @@
+
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
-from .models import BoardColumn, Project, ProjectBoard
+from .models import BoardColumn, Project, ProjectBoard,  Sprint
 
 
 User = get_user_model()
@@ -12,6 +13,14 @@ class CurrentUserProfileSerializer(serializers.ModelSerializer):
         model = User
         fields = ['username', 'email', 'first_name', 'last_name']
 
+
+class SprintSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Sprint
+        fields = [
+            'id', 'board', 'name', 'goal', 'start_date', 'end_date', 'status'
+        ]
+        read_only_fields = ['id', 'board']
 
 class ProjectSerializer(serializers.ModelSerializer):
     owner_username = serializers.CharField(source='owner.username', read_only=True)
@@ -45,3 +54,9 @@ class ProjectBoardSerializer(serializers.ModelSerializer):
         model = ProjectBoard
         fields = ['id', 'project', 'columns', 'created_at']
         read_only_fields = ['id', 'created_at']
+
+# Serializer for board config
+class BoardConfigSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProjectBoard
+        fields = ['board_type', 'view_mode']

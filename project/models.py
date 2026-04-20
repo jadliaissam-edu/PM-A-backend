@@ -1,3 +1,4 @@
+
 import uuid
 from django.db import models
 from django.conf import settings
@@ -27,6 +28,21 @@ class Project(models.Model):
     status = models.CharField(max_length=50, choices=ProjectStatus.choices, default=ProjectStatus.ACTIVE)
     created_at = models.DateTimeField(auto_now_add=True)
 
+# =========================
+# Sprint
+# =========================
+class Sprint(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    board = models.ForeignKey('ProjectBoard', on_delete=models.CASCADE, related_name='sprints')
+    name = models.CharField(max_length=255)
+    goal = models.TextField(blank=True)
+    start_date = models.DateField()
+    end_date = models.DateField()
+    status = models.CharField(max_length=50)
+
+# =========================
+# Project Membership & Roles
+# =========================
 class RoleName(models.TextChoices):
     ADMIN = "admin", "Admin"
     CHEF_DE_PROJET = "chef_de_projet", "ChefDeProjet"
@@ -51,6 +67,9 @@ class RecentProject(models.Model):
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='recently_accessed_by')
     last_access_at = models.DateTimeField(auto_now=True)
 
+# =========================
+# Project Dashboard & Widgets
+# =========================
 class ProjectDashboard(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     project = models.OneToOneField(Project, on_delete=models.CASCADE, related_name='dashboard')
@@ -69,6 +88,9 @@ class DashboardWidget(models.Model):
     position = models.IntegerField(default=0)
     config_json = models.JSONField(default=dict)
 
+# =========================
+# Board & Columns
+# =========================
 class BoardType(models.TextChoices):
     KANBAN = "kanban", "Kanban"
     SCRUM = "scrum", "Scrum"
@@ -115,6 +137,9 @@ class Swimlane(models.Model):
     type = models.CharField(max_length=50, choices=SwimlaneType.choices)
     value = models.CharField(max_length=255)
 
+# =========================
+# Sprint & Reports
+# =========================
 class SprintStatus(models.TextChoices):
     PLANNED = "planned", "Planned"
     ACTIVE = "active", "Active"
@@ -153,6 +178,9 @@ class RetrospectiveBoard(models.Model):
     sprint = models.OneToOneField(Sprint, on_delete=models.CASCADE, related_name='retrospective_board')
     format = models.CharField(max_length=255)
 
+# =========================
+# Release & Notes
+# =========================
 class ReleaseStatus(models.TextChoices):
     PLANNED = "planned", "Planned"
     IN_PROGRESS = "in_progress", "InProgress"
@@ -186,6 +214,9 @@ class ReleaseNote(models.Model):
     content_markdown = models.TextField(blank=True)
     generated_by_ai = models.BooleanField(default=False)
 
+# =========================
+# Report Scope
+# =========================
 class ReportScope(models.TextChoices):
     PROJECT = "project", "Project"
     SPRINT = "sprint", "Sprint"
@@ -214,3 +245,24 @@ class CumulativeFlowDiagram(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='cfds')
     data_json = models.JSONField(default=dict)
+
+
+
+# SPRINT_REPORT model
+from django.utils import timezone
+
+class SprintReport(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    sprint = models.ForeignKey('Sprint', on_delete=models.CASCADE, related_name='reports')
+    total_tickets = models.IntegerField()
+    done_tickets = models.IntegerField()
+    remaining_tickets = models.IntegerField()
+    completion_rate = models.FloatField()
+    generated_at = models.DateTimeField(default=timezone.now)
+
+    def __str__(self):
+        return f"Report for {self.sprint.name} at {self.generated_at}"
+
+
+     
+

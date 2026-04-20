@@ -298,3 +298,123 @@ class BoardColumnDetailView(APIView):
 			return Response({'error': 'Only the owner can delete columns.'}, status=status.HTTP_403_FORBIDDEN)
 		column.delete()
 		return Response(status=status.HTTP_204_NO_CONTENT)
+
+# Sprint creation view
+from .models import Sprint
+from .serializer import SprintSerializer
+
+class SprintCreateView(APIView):
+	authentication_classes = [JWTAuthentication, SessionAuthentication]
+	permission_classes = [IsAuthenticated]
+
+	def post(self, request, project_id):
+		project = get_object_or_404(Project, id=project_id)
+		if not can_access_project(request.user, project):
+			return Response({'error': 'Project not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+		board = ensure_board(project)
+		serializer = SprintSerializer(data=request.data)
+		serializer.is_valid(raise_exception=True)
+		sprint = serializer.save(board=board)
+		return Response(SprintSerializer(sprint).data, status=status.HTTP_201_CREATED)
+	
+class SprintListView(APIView):
+	authentication_classes = [JWTAuthentication, SessionAuthentication]
+	permission_classes = [IsAuthenticated]
+
+	def get(self, request, project_id):
+		project = get_object_or_404(Project, id=project_id)
+		if not can_access_project(request.user, project):
+			return Response({'error': 'Project not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+		board = ensure_board(project)
+		sprints = board.sprints.all().order_by('-start_date')
+		serializer = SprintSerializer(sprints, many=True)
+		return Response(serializer.data)
+
+class SprintDetailView(APIView):
+	authentication_classes = [JWTAuthentication, SessionAuthentication]
+	permission_classes = [IsAuthenticated]
+
+	def get(self, request, project_id, sprint_id):
+		project = get_object_or_404(Project, id=project_id)
+		if not can_access_project(request.user, project):
+			return Response({'error': 'Project not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+		board = ensure_board(project)
+		sprint = get_object_or_404(board.sprints, id=sprint_id)
+		serializer = SprintSerializer(sprint)
+		return Response(serializer.data)
+	
+class SprintReportView(APIView):
+	authentication_classes = [JWTAuthentication, SessionAuthentication]
+	permission_classes = [IsAuthenticated]
+
+	def get(self, request, project_id, sprint_id):
+		project = get_object_or_404(Project, id=project_id)
+		if not can_access_project(request.user, project):
+			return Response({'error': 'Project not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+		board = ensure_board(project)
+		sprint = get_object_or_404(board.sprints, id=sprint_id)
+		report = getattr(sprint, 'report', None)
+		if not report:
+			return Response({'error': 'Sprint report not found.'}, status=status.HTTP_404_NOT_FOUND)
+		data = {
+			'total_tickets': report.total_tickets,
+			'done_tickets': report.done_tickets,
+			'remaining_tickets': report.remaining_tickets,
+			'completion_rate': report.completion_rate,
+			'generated_at': report.generated_at,
+		}
+		return Response(data)
+class SprintCompleteView(APIView):
+	authentication_classes = [JWTAuthentication, SessionAuthentication]
+	permission_classes = [IsAuthenticated]
+
+	def post(self, request, project_id, sprint_id):
+		project = get_object_or_404(Project, id=project_id)
+		if not can_access_project(request.user, project):
+			return Response({'error': 'Project not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+		board = ensure_board(project)
+		sprint = get_object_or_404(board.sprints, id=sprint_id)
+		if sprint.status == 'closed':
+			return Response({'error': 'Sprint is already closed.'}, status=status.HTTP_400_BAD_REQUEST)
+		sprint.status = 'closed'
+		sprint.save(update_fields=['status'])
+		return Response({'message': 'Sprint closed.', 'sprint': SprintSerializer(sprint).data})
+class SprintStartView(APIView):
+	authentication_classes = [JWTAuthentication, SessionAuthentication]
+	permission_classes = [IsAuthenticated]
+
+	def post(self, request, project_id, sprint_id):
+		project = get_object_or_404(Project, id=project_id)
+		if not can_access_project(request.user, project):
+			return Response({'error': 'Project not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+		board = ensure_board(project)
+		sprint = get_object_or_404(board.sprints, id=sprint_id)
+		if sprint.status == 'active':
+			return Response({'error': 'Sprint is already active.'}, status=status.HTTP_400_BAD_REQUEST)
+		sprint.status = 'active'
+		sprint.save(update_fields=['status'])
+		return Response({'message': 'Sprint started.', 'sprint': SprintSerializer(sprint).data})
+	
+from .serializer import BoardConfigSerializer
+# Board config view for PATCH
+class BoardConfigView(APIView):
+	authentication_classes = [JWTAuthentication, SessionAuthentication]
+	permission_classes = [IsAuthenticated]
+
+	def patch(self, request, project_id):
+		project = get_object_or_404(Project, id=project_id)
+		if not can_access_project(request.user, project):
+			return Response({'error': 'Project not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+		board = ensure_board(project)
+		serializer = BoardConfigSerializer(board, data=request.data, partial=True)
+		if serializer.is_valid():
+			serializer.save()
+			return Response(serializer.data)
+		return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

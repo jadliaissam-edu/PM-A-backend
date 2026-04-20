@@ -37,6 +37,9 @@ urlpatterns = [
     path('api/',include('project.urls')),
     path('api/',include('role.urls')),
     path('api/auth/',include('accounts.urls')), 
+    path('api/orgs/', include('orgs.urls')),
+    path('api/core/', include('core.urls')),
+    
     # OpenAPI schema (JSON)
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
 

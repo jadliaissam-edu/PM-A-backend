@@ -1,7 +1,12 @@
+
 import uuid
 from django.db import models
 from django.conf import settings
+from project.models import Project
 
+# =========================
+# Ticket Types, Priority, Status
+# =========================
 class TicketType(models.TextChoices):
     BUG = "bug", "Bug"
     FEATURE = "feature", "Feature"
@@ -22,6 +27,9 @@ class TicketStatus(models.TextChoices):
     IN_REVIEW = "in_review", "InReview"
     DONE = "done", "Done"
 
+# =========================
+# Ticket Core Model
+# =========================
 class Ticket(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     project = models.ForeignKey('project.Project', on_delete=models.CASCADE, related_name='tickets')
@@ -38,6 +46,9 @@ class Ticket(models.Model):
     estimate_hours = models.FloatField(default=0.0)
     created_at = models.DateTimeField(auto_now_add=True)
 
+# =========================
+# Assignment & Time Tracking
+# =========================
 class TicketAssignment(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name='assignments')
@@ -53,6 +64,9 @@ class TimeEntry(models.Model):
     started_at = models.DateTimeField()
     ended_at = models.DateTimeField()
 
+# =========================
+# Attachments
+# =========================
 class Attachment(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name='attachments')
@@ -63,6 +77,9 @@ class Attachment(models.Model):
     file_size = models.IntegerField()
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
+# =========================
+# Ticket Links
+# =========================
 class TicketLinkType(models.TextChoices):
     BLOCKS = "blocks", "Blocks"
     BLOCKED_BY = "blocked_by", "BlockedBy"
@@ -76,6 +93,9 @@ class TicketLink(models.Model):
     link_type = models.CharField(max_length=50, choices=TicketLinkType.choices)
     created_at = models.DateTimeField(auto_now_add=True)
 
+# =========================
+# Audit Log
+# =========================
 class TicketAuditLog(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name='audit_logs')
@@ -85,6 +105,9 @@ class TicketAuditLog(models.Model):
     new_value = models.TextField(blank=True, null=True)
     changed_at = models.DateTimeField(auto_now_add=True)
 
+# =========================
+# Search & Import
+# =========================
 class TicketSearchQuery(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     text = models.CharField(max_length=255, blank=True)
@@ -119,3 +142,11 @@ class TicketMovement(models.Model):
     to_column = models.ForeignKey('project.BoardColumn', on_delete=models.SET_NULL, null=True, related_name='moved_to')
     moved_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL)
     moved_at = models.DateTimeField(auto_now_add=True)
+
+class BacklogItem(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='backlog_items')
+    ticket = models.ForeignKey('Ticket', on_delete=models.CASCADE, related_name='backlog_items')
+    rank = models.IntegerField()
+    priority_score = models.IntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)

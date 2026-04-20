@@ -1,7 +1,10 @@
 
-from datetime import timedelta
-import random
 
+# Standard library imports
+import random
+from datetime import timedelta
+
+# Django imports
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
@@ -9,16 +12,20 @@ from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from django.utils import timezone
-from rest_framework import generics
-from rest_framework import status
+
+# Third-party imports
+from rest_framework import generics, status, permissions, serializers
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .serializer import EmailTokenObtainPairSerializer
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 
+# Local imports
 from .models import MFAConfig, PasswordResetOTP
 from .services.mfa_service import generate_mfa_secret, generate_qr_url, verify_mfa_token
 from .serializer import (
+    EmailTokenObtainPairSerializer,
     MFASetupSerializer,
     MFAVerifySerializer,
     PasswordResetConfirmSerializer,
@@ -27,14 +34,39 @@ from .serializer import (
     RegisterSerializer,
 )
 
+
+# --- Auth & User Management Views ---
+
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
+
+class EmailTokenObtainPairView(TokenObtainPairView):
+    serializer_class = EmailTokenObtainPairSerializer
+
+class LogoutView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    class LogoutSerializer(serializers.Serializer):
+        refresh = serializers.CharField()
+
+    def post(self, request):
+        serializer = self.LogoutSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        refresh_token = serializer.validated_data["refresh"]
+        try:
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+        except Exception:
+            return Response({"detail": "Invalid or expired token."}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"detail": "Logout successful."}, status=status.HTTP_205_RESET_CONTENT)
+
+# --- Password Reset Views ---
 
 class PasswordResetRequestView(APIView):
     def post(self, request):
         serializer = PasswordResetRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        email = serializer.validated_data['email']
+        email = serializer.validatewd_data['email']
         try:
             user = User.objects.get(email=email)
         except User.DoesNotExist:
@@ -46,7 +78,6 @@ class PasswordResetRequestView(APIView):
                 },
                 status=status.HTTP_200_OK,
             )
-    
         otp_code = f"{random.randint(0, 999999):06d}"
         expires_at = timezone.now() + timedelta(minutes=settings.OTP_EXPIRE_MINUTES)
 
@@ -102,7 +133,6 @@ class PasswordResetRequestView(APIView):
 
         return Response(response_data, status=status.HTTP_200_OK)
 
-
 class PasswordResetVerifyOTPView(APIView):
     def post(self, request):
         serializer = PasswordResetVerifyOTPSerializer(data=request.data)
@@ -125,7 +155,6 @@ class PasswordResetVerifyOTPView(APIView):
             return Response({'error': 'Invalid or expired OTP.'}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response({'message': 'OTP is valid.'}, status=status.HTTP_200_OK)
-
 
 class PasswordResetConfirmView(APIView):
     def post(self, request):
@@ -162,6 +191,7 @@ class PasswordResetConfirmView(APIView):
 
         return Response({'message': 'Password reset successful.'}, status=status.HTTP_200_OK)
 
+# --- MFA Views ---
 
 class MFASetupView(APIView):
     def post(self, request):
@@ -198,7 +228,6 @@ class MFASetupView(APIView):
             status=status.HTTP_200_OK,
         )
 
-
 class MFAVerifyView(APIView):
     def post(self, request):
         serializer = MFAVerifySerializer(data=request.data)
@@ -227,6 +256,3 @@ class MFAVerifyView(APIView):
             mfa_config.save(update_fields=['is_enabled'])
 
         return Response({'message': 'MFA verified and enabled.'}, status=status.HTTP_200_OK)
-
-class EmailTokenObtainPairView(TokenObtainPairView):
-    serializer_class = EmailTokenObtainPairSerializer

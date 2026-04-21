@@ -28,6 +28,104 @@ Response `200 OK`:
 }
 ```
 
+## Frontend Core Data
+
+### GET `/api/users/me/`
+
+Returns the authenticated user profile for profile/settings pages.
+
+Response `200 OK`:
+
+```json
+{
+  "id": 1,
+  "username": "frontend-user",
+  "email": "frontend@example.com",
+  "first_name": "",
+  "last_name": ""
+}
+```
+
+### PATCH `/api/users/me/`
+
+Update the authenticated user profile.
+
+Request body example:
+
+```json
+{
+  "first_name": "John",
+  "last_name": "Doe"
+}
+```
+
+### GET `/api/dashboard/`
+
+Frontend-ready dashboard payload with summary counts, recent projects, and nested organizations/workspaces/projects.
+
+### GET `/api/orgs/tree/`
+
+Nested organization tree:
+
+```json
+[
+  {
+    "id": "org-id",
+    "name": "Matier",
+    "created_at": "2026-04-21T01:00:00Z",
+    "workspaces": [
+      {
+        "id": "workspace-id",
+        "name": "Product",
+        "visibility": "internal",
+        "projects": [
+          {
+            "id": "project-id",
+            "name": "Frontend Ready Project",
+            "description": "Project data for dashboard and profile pages.",
+            "type": "software",
+            "visibility": "private",
+            "status": "active",
+            "created_at": "2026-04-21T01:00:00Z",
+            "board_id": "board-id"
+          }
+        ]
+      }
+    ]
+  }
+]
+```
+
+### GET `/api/projects/`
+
+List projects. Optional query params:
+
+- `workspace_id`
+- `organization_id`
+- `status`
+- `search`
+
+### POST `/api/projects/`
+
+Create a project and auto-create its board/dashboard membership for the creator.
+
+Request body example:
+
+```json
+{
+  "name": "Frontend Ready Project",
+  "description": "Project data for dashboard and profile pages.",
+  "workspace_id": "workspace-id",
+  "type": "software",
+  "visibility": "private",
+  "status": "active"
+}
+```
+
+### GET `/api/projects/{project_id}/board/`
+
+Returns the project plus its board configuration and columns.
+
 ## Auth And Account
 
 ### POST `/api/auth/register/`

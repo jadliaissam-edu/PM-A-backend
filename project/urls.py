@@ -1,50 +1,145 @@
-from .views import BoardConfigView
-from .views import SprintReportView
-from .views import SprintCompleteView
-from .views import SprintStartView
-
 from django.urls import path
 
 from .views import (
     BoardColumnCreateView,
     BoardColumnDetailView,
+    BoardConfigView,
+    BoardStatsView,
+    BoardTaskSummaryView,
     BoardView,
     CurrentUserProfileView,
     DashboardStatsView,
+    DashboardProjectsView,
     DashboardView,
+    MemberProgressReportView,
     ProjectArchiveView,
     ProjectCloseView,
     ProjectDetailView,
     ProjectListCreateView,
     ProjectMembersView,
+    ProjectRoleDetailView,
+    ProjectRoleListCreateView,
+    ProjectProgressReportView,
     RecentProjectsView,
+    SprintCompleteView,
+    SprintDetailView,
+    SprintListCreateView,
+    SprintProgressReportView,
+    SprintReportView,
+    SprintStartView,
     UserDetailView,
     health_check,
-    SprintListView,
-    SprintDetailView ,
 )
 
-from .views import SprintCreateView
+
 urlpatterns = [
-    path('health/', health_check, name='health_check'),
-    path('projects/<uuid:project_id>/sprints/', SprintCreateView.as_view(), name='sprint-create'),
-    path('projects/<uuid:project_id>/sprints/', SprintListView.as_view(), name='sprint-list'),
-    path('projects/<uuid:project_id>/sprints/<uuid:sprint_id>/start/', SprintStartView.as_view(), name='sprint-start'),
-    path('projects/<uuid:project_id>/sprints/<uuid:sprint_id>/complete/', SprintCompleteView.as_view(), name='sprint-complete'),
-    path('projects/<uuid:project_id>/sprints/<uuid:sprint_id>/report/', SprintReportView.as_view(), name='sprint-report'),
-    path('projects/<uuid:project_id>/sprints/<uuid:sprint_id>/', SprintDetailView.as_view(), name='sprint-detail'),
-    path('users/me/', CurrentUserProfileView.as_view(), name='current-user-profile'),
-    path('users/<int:user_id>/', UserDetailView.as_view(), name='user-detail'),
-    path('dashboard/', DashboardView.as_view(), name='dashboard'),
-    path('dashboard/stats/', DashboardStatsView.as_view(), name='dashboard-stats'),
-    path('dashboard/recent-projects/', RecentProjectsView.as_view(), name='dashboard-recent-projects'),
-    path('projects/', ProjectListCreateView.as_view(), name='project-list-create'),
-    path('projects/<uuid:project_id>/', ProjectDetailView.as_view(), name='project-detail'),
-    path('projects/<uuid:project_id>/archive/', ProjectArchiveView.as_view(), name='project-archive'),
-    path('projects/<uuid:project_id>/close/', ProjectCloseView.as_view(), name='project-close'),
-    path('projects/<uuid:project_id>/members/', ProjectMembersView.as_view(), name='project-members'),
-    path('projects/<uuid:project_id>/board/', BoardView.as_view(), name='project-board'),
-    path('projects/<uuid:project_id>/board/columns/', BoardColumnCreateView.as_view(), name='board-column-create'),
-    path('board/columns/<uuid:column_id>/', BoardColumnDetailView.as_view(), name='board-column-detail'),
-    path('projects/<uuid:project_id>/board/', BoardConfigView.as_view(), name='board-config'),
+    path("health/", health_check, name="health_check"),
+    path("users/me/", CurrentUserProfileView.as_view(), name="current-user-profile"),
+    path("users/<int:user_id>/", UserDetailView.as_view(), name="user-detail"),
+    path("dashboard/", DashboardView.as_view(), name="dashboard"),
+    path("dashboard/stats/", DashboardStatsView.as_view(), name="dashboard-stats"),
+    path("dashboard/projects/", DashboardProjectsView.as_view(), name="dashboard-projects"),
+    path(
+        "dashboard/recent-projects/",
+        RecentProjectsView.as_view(),
+        name="dashboard-recent-projects",
+    ),
+    path("projects/", ProjectListCreateView.as_view(), name="project-list-create"),
+    path("projects/<uuid:project_id>/", ProjectDetailView.as_view(), name="project-detail"),
+    path(
+        "projects/<uuid:project_id>/archive/",
+        ProjectArchiveView.as_view(),
+        name="project-archive",
+    ),
+    path(
+        "projects/<uuid:project_id>/close/",
+        ProjectCloseView.as_view(),
+        name="project-close",
+    ),
+    path(
+        "projects/<uuid:project_id>/members/",
+        ProjectMembersView.as_view(),
+        name="project-members",
+    ),
+    path(
+        "projects/<uuid:project_id>/roles/",
+        ProjectRoleListCreateView.as_view(),
+        name="project-roles",
+    ),
+    path(
+        "projects/<uuid:project_id>/roles/<uuid:role_id>/",
+        ProjectRoleDetailView.as_view(),
+        name="project-role-detail",
+    ),
+    path("projects/<uuid:project_id>/board/", BoardView.as_view(), name="project-board"),
+    path(
+        "projects/<uuid:project_id>/board/stats/",
+        BoardStatsView.as_view(),
+        name="board-stats",
+    ),
+    path(
+        "projects/<uuid:project_id>/board/task-summary/",
+        BoardTaskSummaryView.as_view(),
+        name="board-task-summary",
+    ),
+    path(
+        "projects/<uuid:project_id>/board/config/",
+        BoardConfigView.as_view(),
+        name="board-config",
+    ),
+    path(
+        "projects/<uuid:project_id>/board/columns/",
+        BoardColumnCreateView.as_view(),
+        name="board-column-create",
+    ),
+    path(
+        "board/columns/<uuid:column_id>/",
+        BoardColumnDetailView.as_view(),
+        name="board-column-detail",
+    ),
+    path(
+        "projects/<uuid:project_id>/board/columns/<uuid:column_id>/",
+        BoardColumnDetailView.as_view(),
+        name="project-board-column-detail",
+    ),
+    path(
+        "projects/<uuid:project_id>/sprints/",
+        SprintListCreateView.as_view(),
+        name="sprint-list-create",
+    ),
+    path(
+        "projects/<uuid:project_id>/sprints/<uuid:sprint_id>/",
+        SprintDetailView.as_view(),
+        name="sprint-detail",
+    ),
+    path(
+        "projects/<uuid:project_id>/sprints/<uuid:sprint_id>/start/",
+        SprintStartView.as_view(),
+        name="sprint-start",
+    ),
+    path(
+        "projects/<uuid:project_id>/sprints/<uuid:sprint_id>/complete/",
+        SprintCompleteView.as_view(),
+        name="sprint-complete",
+    ),
+    path(
+        "projects/<uuid:project_id>/sprints/<uuid:sprint_id>/report/",
+        SprintReportView.as_view(),
+        name="sprint-report",
+    ),
+    path(
+        "projects/<uuid:project_id>/reports/progress/",
+        ProjectProgressReportView.as_view(),
+        name="project-progress-report",
+    ),
+    path(
+        "projects/<uuid:project_id>/sprints/<uuid:sprint_id>/reports/progress/",
+        SprintProgressReportView.as_view(),
+        name="sprint-progress-report",
+    ),
+    path(
+        "projects/<uuid:project_id>/members/<int:user_id>/reports/progress/",
+        MemberProgressReportView.as_view(),
+        name="member-progress-report",
+    ),
 ]

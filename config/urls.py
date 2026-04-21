@@ -19,7 +19,6 @@ from django.contrib import admin
 from django.urls import path,include 
 from rest_framework_simplejwt.views import ( 
     TokenObtainPairView,
-    TokenRefreshView, 
 )
 from drf_spectacular.views import (
     SpectacularAPIView,
@@ -29,14 +28,16 @@ from drf_spectacular.views import (
 from rest_framework_simplejwt.views import TokenVerifyView
 from django.conf.urls.static import static 
 from config import settings
+from accounts.views import CookieTokenRefreshView
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/login/', TokenObtainPairView.as_view(), name='token_obtain_pair_legacy'),
-    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh_legacy'),
+    path('api/token/refresh/', CookieTokenRefreshView.as_view(), name='token_refresh_legacy'),
     path('api/token/verify/', TokenVerifyView.as_view(), name='token_verify_legacy'),
     path('api/',include('project.urls')),
-    path('api/',include('role.urls')),
     path('api/auth/',include('accounts.urls')), 
+    path('api/', include('tickets.urls')),
+    path('api/', include('collaboration.urls')),
     path('api/orgs/', include('orgs.urls')),
     path('api/core/', include('core.urls')),
     

@@ -1,13 +1,23 @@
-from rest_framework.urls import path
+from django.urls import path
 
-from collaboration.views import CommentDeleteView , CommentListView, CommentCreateView, CommentupdateView, ReactionDeleteView, ReactionListView, ReactionCreateView
+from .views import CommentDetailView, CommentListCreateView, ReactionDeleteView, ReactionListCreateView
+
 
 urlpatterns = [
-    path('tickets/<uuid:ticketId>/comments/', CommentListView.as_view()),
-    path('tickets/<uuid:ticketId>/comments/create/', CommentCreateView.as_view()),
-    path('comments/<uuid:id>/', CommentupdateView.as_view()),
-    path('comments/<uuid:id>/delete/', CommentDeleteView.as_view()),
-    path('comments/<uuid:commentId>/reactions/', ReactionListView.as_view()),
-    path('comments/<uuid:commentId>/reactions/add/', ReactionCreateView.as_view()),
-    path('comments/<uuid:commentId>/reactions/<uuid:id>/', ReactionDeleteView.as_view()),
-    ]   
+    path(
+        "projects/<uuid:project_id>/tickets/<uuid:ticket_id>/comments/",
+        CommentListCreateView.as_view(),
+    ),
+    path(
+        "projects/<uuid:project_id>/tickets/<uuid:ticket_id>/comments/<uuid:comment_id>/",
+        CommentDetailView.as_view(),
+    ),
+    path(
+        "projects/<uuid:project_id>/tickets/<uuid:ticket_id>/comments/<uuid:comment_id>/reactions/",
+        ReactionListCreateView.as_view(),
+    ),
+    path(
+        "projects/<uuid:project_id>/tickets/<uuid:ticket_id>/comments/<uuid:comment_id>/reactions/<uuid:reaction_id>/",
+        ReactionDeleteView.as_view(),
+    ),
+]

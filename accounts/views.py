@@ -19,6 +19,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 
 # Local imports
@@ -37,28 +38,87 @@ from .serializer import (
 
 # --- Auth & User Management Views ---
 
+def set_refresh_cookie(response, refresh_token):
+    max_age = int(settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds())
+    response.set_cookie(
+        settings.JWT_REFRESH_COOKIE,
+        refresh_token,
+        max_age=max_age,
+        httponly=settings.JWT_COOKIE_HTTP_ONLY,
+        secure=settings.JWT_COOKIE_SECURE,
+        samesite=settings.JWT_COOKIE_SAMESITE,
+        path=settings.JWT_REFRESH_COOKIE_PATH,
+    )
+
+
+def clear_refresh_cookie(response):
+    response.delete_cookie(
+        settings.JWT_REFRESH_COOKIE,
+        path=settings.JWT_REFRESH_COOKIE_PATH,
+        samesite=settings.JWT_COOKIE_SAMESITE,
+    )
+
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
 
 class EmailTokenObtainPairView(TokenObtainPairView):
     serializer_class = EmailTokenObtainPairSerializer
 
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        refresh_token = response.data.get("refresh")
+        if refresh_token:
+            set_refresh_cookie(response, refresh_token)
+        return response
+
+
+class CookieTokenRefreshView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        refresh_token = request.data.get("refresh") or request.COOKIES.get(
+            settings.JWT_REFRESH_COOKIE
+        )
+
+        if not refresh_token:
+            return Response(
+                {"detail": "Refresh token cookie not found."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        serializer = TokenRefreshSerializer(data={"refresh": refresh_token})
+        serializer.is_valid(raise_exception=True)
+        return Response(serializer.validated_data, status=status.HTTP_200_OK)
+
 class LogoutView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
 
     class LogoutSerializer(serializers.Serializer):
-        refresh = serializers.CharField()
+        refresh = serializers.CharField(required=False)
 
     def post(self, request):
         serializer = self.LogoutSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        refresh_token = serializer.validated_data["refresh"]
+        refresh_token = serializer.validated_data.get("refresh") or request.COOKIES.get(
+            settings.JWT_REFRESH_COOKIE
+        )
+        response = Response(
+            {"detail": "Logout successful."},
+            status=status.HTTP_205_RESET_CONTENT
+        )
+
+        if not refresh_token:
+            clear_refresh_cookie(response)
+            return response
+
         try:
             token = RefreshToken(refresh_token)
             token.blacklist()
         except Exception:
             return Response({"detail": "Invalid or expired token."}, status=status.HTTP_400_BAD_REQUEST)
-        return Response({"detail": "Logout successful."}, status=status.HTTP_205_RESET_CONTENT)
+
+        clear_refresh_cookie(response)
+        return response
 
 # --- Password Reset Views ---
 
@@ -66,7 +126,7 @@ class PasswordResetRequestView(APIView):
     def post(self, request):
         serializer = PasswordResetRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        email = serializer.validatewd_data['email']
+        email = serializer.validated_data['email']
         try:
             user = User.objects.get(email=email)
         except User.DoesNotExist:

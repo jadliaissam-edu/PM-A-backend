@@ -60,8 +60,8 @@ INSTALLED_APPS = [
 ]
 
 REST_FRAMEWORK = { 
-    # Use session authentication for development, can switch to JWT or other in production 
     'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
         'rest_framework.authentication.SessionAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
@@ -86,6 +86,15 @@ MIDDLEWARE = [
 
 # CORS settings
 CORS_ALLOW_ALL_ORIGINS = True ## Allow all origins for development, change in production 
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv(
+        'CORS_ALLOWED_ORIGINS',
+        'http://127.0.0.1:3000,http://localhost:3000'
+    ).split(',')
+    if origin.strip()
+]
 ROOT_URLCONF = 'config.urls'
 
 TEMPLATES = [
@@ -132,6 +141,12 @@ SIMPLE_JWT = {
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
+
+JWT_REFRESH_COOKIE = os.getenv('JWT_REFRESH_COOKIE', 'refresh_token')
+JWT_REFRESH_COOKIE_PATH = os.getenv('JWT_REFRESH_COOKIE_PATH', '/api/auth/')
+JWT_COOKIE_SECURE = env_bool('JWT_COOKIE_SECURE', not DEBUG)
+JWT_COOKIE_HTTP_ONLY = env_bool('JWT_COOKIE_HTTP_ONLY', True)
+JWT_COOKIE_SAMESITE = os.getenv('JWT_COOKIE_SAMESITE', 'Lax')
 
 
 EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')

@@ -1,7 +1,10 @@
 
-from datetime import timedelta
-import random
 
+# Standard library imports
+import random
+from datetime import timedelta
+
+# Django imports
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
@@ -9,14 +12,21 @@ from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from django.utils import timezone
-from rest_framework import generics
-from rest_framework import status
+
+# Third-party imports
+from rest_framework import generics, status, permissions, serializers
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.serializers import TokenRefreshSerializer
+from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 
-from .models import MFaConfig, PasswordResetOTP
+# Local imports
+from .models import MFAConfig, PasswordResetOTP
 from .services.mfa_service import generate_mfa_secret, generate_qr_url, verify_mfa_token
 from .serializer import (
+    EmailTokenObtainPairSerializer,
     MFASetupSerializer,
     MFAVerifySerializer,
     PasswordResetConfirmSerializer,
@@ -25,8 +35,124 @@ from .serializer import (
     RegisterSerializer,
 )
 
+
+# --- Auth & User Management Views ---
+
+def set_refresh_cookie(response, refresh_token):
+    max_age = int(settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds())
+    response.set_cookie(
+        settings.JWT_REFRESH_COOKIE,
+        refresh_token,
+        max_age=max_age,
+        httponly=settings.JWT_COOKIE_HTTP_ONLY,
+        secure=settings.JWT_COOKIE_SECURE,
+        samesite=settings.JWT_COOKIE_SAMESITE,
+        path=settings.JWT_REFRESH_COOKIE_PATH,
+    )
+
+
+def set_access_cookie(response, access_token):
+    max_age = int(settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds())
+    response.set_cookie(
+        settings.JWT_ACCESS_COOKIE,
+        access_token,
+        max_age=max_age,
+        httponly=settings.JWT_COOKIE_HTTP_ONLY,
+        secure=settings.JWT_COOKIE_SECURE,
+        samesite=settings.JWT_COOKIE_SAMESITE,
+        path=settings.JWT_ACCESS_COOKIE_PATH,
+    )
+
+
+def clear_refresh_cookie(response):
+    response.delete_cookie(
+        settings.JWT_REFRESH_COOKIE,
+        path=settings.JWT_REFRESH_COOKIE_PATH,
+        samesite=settings.JWT_COOKIE_SAMESITE,
+    )
+
+
+def clear_access_cookie(response):
+    response.delete_cookie(
+        settings.JWT_ACCESS_COOKIE,
+        path=settings.JWT_ACCESS_COOKIE_PATH,
+        samesite=settings.JWT_COOKIE_SAMESITE,
+    )
+
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
+
+class EmailTokenObtainPairView(TokenObtainPairView):
+    serializer_class = EmailTokenObtainPairSerializer
+
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        access_token = response.data.get("access")
+        refresh_token = response.data.get("refresh")
+        if access_token:
+            set_access_cookie(response, access_token)
+        if refresh_token:
+            set_refresh_cookie(response, refresh_token)
+        return response
+
+
+class CookieTokenRefreshView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        refresh_token = request.data.get("refresh") or request.COOKIES.get(
+            settings.JWT_REFRESH_COOKIE
+        )
+
+        if not refresh_token:
+            return Response(
+                {"detail": "Refresh token cookie not found."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        serializer = TokenRefreshSerializer(data={"refresh": refresh_token})
+        serializer.is_valid(raise_exception=True)
+        response = Response(serializer.validated_data, status=status.HTTP_200_OK)
+        access_token = serializer.validated_data.get("access")
+        if access_token:
+            set_access_cookie(response, access_token)
+        if serializer.validated_data.get("refresh"):
+            set_refresh_cookie(response, serializer.validated_data["refresh"])
+        return response
+
+class LogoutView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    class LogoutSerializer(serializers.Serializer):
+        refresh = serializers.CharField(required=False)
+
+    def post(self, request):
+        serializer = self.LogoutSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        refresh_token = serializer.validated_data.get("refresh") or request.COOKIES.get(
+            settings.JWT_REFRESH_COOKIE
+        )
+        response = Response(
+            {"detail": "Logout successful."},
+            status=status.HTTP_205_RESET_CONTENT
+        )
+
+        if not refresh_token:
+            clear_access_cookie(response)
+            clear_refresh_cookie(response)
+            return response
+
+        try:
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+        except Exception:
+            return Response({"detail": "Invalid or expired token."}, status=status.HTTP_400_BAD_REQUEST)
+
+        clear_access_cookie(response)
+        clear_refresh_cookie(response)
+        return response
+
+# --- Password Reset Views ---
 
 class PasswordResetRequestView(APIView):
     def post(self, request):
@@ -44,7 +170,6 @@ class PasswordResetRequestView(APIView):
                 },
                 status=status.HTTP_200_OK,
             )
-    
         otp_code = f"{random.randint(0, 999999):06d}"
         expires_at = timezone.now() + timedelta(minutes=settings.OTP_EXPIRE_MINUTES)
 
@@ -100,7 +225,6 @@ class PasswordResetRequestView(APIView):
 
         return Response(response_data, status=status.HTTP_200_OK)
 
-
 class PasswordResetVerifyOTPView(APIView):
     def post(self, request):
         serializer = PasswordResetVerifyOTPSerializer(data=request.data)
@@ -123,7 +247,6 @@ class PasswordResetVerifyOTPView(APIView):
             return Response({'error': 'Invalid or expired OTP.'}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response({'message': 'OTP is valid.'}, status=status.HTTP_200_OK)
-
 
 class PasswordResetConfirmView(APIView):
     def post(self, request):
@@ -160,6 +283,7 @@ class PasswordResetConfirmView(APIView):
 
         return Response({'message': 'Password reset successful.'}, status=status.HTTP_200_OK)
 
+# --- MFA Views ---
 
 class MFASetupView(APIView):
     def post(self, request):
@@ -172,7 +296,7 @@ class MFASetupView(APIView):
         except User.DoesNotExist:
             return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        mfa_config, _ = MFaConfig.objects.get_or_create(
+        mfa_config, _ = MFAConfig.objects.get_or_create(
             user=user,
             defaults={'method': 'authenticator'},
         )
@@ -196,7 +320,6 @@ class MFASetupView(APIView):
             status=status.HTTP_200_OK,
         )
 
-
 class MFAVerifyView(APIView):
     def post(self, request):
         serializer = MFAVerifySerializer(data=request.data)
@@ -210,8 +333,8 @@ class MFAVerifyView(APIView):
             return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
 
         try:
-            mfa_config = MFaConfig.objects.get(user=user, method='authenticator')
-        except MFaConfig.DoesNotExist:
+            mfa_config = MFAConfig.objects.get(user=user, method='authenticator')
+        except MFAConfig.DoesNotExist:
             return Response({'error': 'MFA setup not found.'}, status=status.HTTP_404_NOT_FOUND)
 
         if not mfa_config.secret:
@@ -225,8 +348,3 @@ class MFAVerifyView(APIView):
             mfa_config.save(update_fields=['is_enabled'])
 
         return Response({'message': 'MFA verified and enabled.'}, status=status.HTTP_200_OK)
-
-
-
-
-    

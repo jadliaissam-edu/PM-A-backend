@@ -20,6 +20,10 @@ def env_bool(key, default=False):
     return value.strip().lower() in {'1', 'true', 'yes', 'on'}
 
 
+def env_list(key, default=''):
+    return [item.strip() for item in os.getenv(key, default).split(',') if item.strip()]
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
@@ -43,41 +47,57 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     # rest framework 
     'rest_framework',
+    'rest_framework_simplejwt.token_blacklist',
     # our app 
     'accounts',
-    'core', 
+    'project',
+    'role',
+    'tickets',
+    'collaboration',
     ## jwt authentication 
     'corsheaders', 
     ## debug toolbar 
     "debug_toolbar",
+    'drf_spectacular', 
+    'orgs',
+    'core',
 ]
 
 REST_FRAMEWORK = { 
-    # Use session authentication for development, can switch to JWT or other in production 
     'DEFAULT_AUTHENTICATION_CLASSES': [
+        'accounts.authentication.JWTAuthentication',
         'rest_framework.authentication.SessionAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.AllowAny',
-    ]
+    ],
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     }
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    # cors headers middleware
-    'corsheaders.middleware.CorsMiddleware',
     # debug toolbar middleware 
     "debug_toolbar.middleware.DebugToolbarMiddleware", 
 ]
 
 # CORS settings
-CORS_ALLOW_ALL_ORIGINS = True ## Allow all origins for development, change in production 
+CORS_ALLOW_ALL_ORIGINS = env_bool('CORS_ALLOW_ALL_ORIGINS', False)
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOWED_ORIGINS = env_list(
+    'CORS_ALLOWED_ORIGINS',
+    'http://127.0.0.1:3000,http://localhost:3000'
+)
+CSRF_TRUSTED_ORIGINS = env_list(
+    'CSRF_TRUSTED_ORIGINS',
+    'http://127.0.0.1:3000,http://localhost:3000'
+)
 ROOT_URLCONF = 'config.urls'
 
 TEMPLATES = [
@@ -123,7 +143,21 @@ SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
     'AUTH_HEADER_TYPES': ('Bearer',),
+    # Rotate refresh tokens on every use and blacklist the old one
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
 }
+
+JWT_REFRESH_COOKIE = os.getenv('JWT_REFRESH_COOKIE', 'refresh_token')
+JWT_ACCESS_COOKIE = os.getenv('JWT_ACCESS_COOKIE', 'access_token')
+JWT_REFRESH_COOKIE_PATH = os.getenv('JWT_REFRESH_COOKIE_PATH', '/')
+JWT_ACCESS_COOKIE_PATH = os.getenv('JWT_ACCESS_COOKIE_PATH', '/')
+JWT_COOKIE_SECURE = env_bool('JWT_COOKIE_SECURE', not DEBUG)
+JWT_COOKIE_HTTP_ONLY = env_bool('JWT_COOKIE_HTTP_ONLY', True)
+JWT_COOKIE_SAMESITE = os.getenv('JWT_COOKIE_SAMESITE', 'Lax').capitalize()
+
+if JWT_COOKIE_SAMESITE == 'None':
+    JWT_COOKIE_SECURE = True
 
 
 EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
@@ -147,3 +181,10 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+
+# swagger add  settings for API documentation 
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'My API',
+    'DESCRIPTION': 'API for my project',
+    'VERSION': '1.0.0',
+}

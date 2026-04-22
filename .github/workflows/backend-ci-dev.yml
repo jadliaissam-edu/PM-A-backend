@@ -1,0 +1,64 @@
+name: Backend CI (DEV)
+
+on:
+  push:
+    branches:
+      - dev
+  pull_request:
+    branches:
+      - dev
+  workflow_dispatch:
+
+jobs:
+  lint:
+    name: Lint & Code Quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install tools
+        run: |
+          pip install flake8 black isort bandit
+
+      - name: Run Black (format check)
+        run: black --check .
+        continue-on-error: true
+
+      - name: Run isort (imports check)
+        run: isort --check-only .
+        continue-on-error: true
+      - name: Run Flake8 (style + syntax)
+        run: flake8 .
+        continue-on-error: true
+      - name: Run Bandit (security scan)
+        run: bandit -r .
+        continue-on-error: true
+  test:
+    name: Unit Tests (Pytest)
+    runs-on: ubuntu-latest
+    needs: lint
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest pytest-django pytest-cov
+
+      - name: Run tests with coverage
+        run: pytest --cov=. --cov-report=term-missing --cov-fail-under=80
+        continue-on-error: true

@@ -3,7 +3,7 @@ from rest_framework import serializers
 
 from orgs.models import Workspace
 
-from .models import BoardColumn, Project, ProjectBoard, ProjectMember, Sprint, SprintReport
+from .models import BoardColumn, Project, ProjectBoard, ProjectMember, Sprint, SprintReport, Release
 
 
 User = get_user_model()
@@ -140,3 +140,20 @@ class SprintSerializer(serializers.ModelSerializer):
         if not latest_report:
             return None
         return SprintReportSerializer(latest_report).data
+
+
+class ReleaseSerializer(serializers.ModelSerializer):
+    project_name = serializers.CharField(source="project.name", read_only=True)
+
+    class Meta:
+        model = Release
+        fields = [
+            "id",
+            "project",
+            "project_name",
+            "tag",
+            "target_date",
+            "description",
+            "status",
+        ]
+        read_only_fields = ["id", "project_name"]

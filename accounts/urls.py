@@ -1,6 +1,5 @@
 from django.urls import path 
-from  rest_framework_simplejwt.views import ( 
-) 
+
 from .views import  EmailTokenObtainPairView, PasswordResetRequestView
 from .views import  PasswordResetConfirmView 
 from .views import PasswordResetVerifyOTPView

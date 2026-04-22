@@ -4,7 +4,7 @@ from rest_framework.authentication import SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework_simplejwt.authentication import JWTAuthentication
+from accounts.authentication import JWTAuthentication
 
 from project.models import Project
 
@@ -31,10 +31,16 @@ class OrganizationViewSet(AuthenticatedModelViewSet):
 
 
 class WorkspaceViewSet(AuthenticatedModelViewSet):
-    queryset = Workspace.objects.select_related("organization").annotate(
-        project_count=Count("projects", distinct=True)
-    ).order_by("name")
     serializer_class = WorkspaceSerializer
+
+    def get_queryset(self):
+        qs = Workspace.objects.select_related("organization").annotate(
+            project_count=Count("projects", distinct=True)
+        ).order_by("name")
+        org_id = self.request.query_params.get("organization")
+        if org_id:
+            qs = qs.filter(organization_id=org_id)
+        return qs
 
 
 class InvitationViewSet(AuthenticatedModelViewSet):

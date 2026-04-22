@@ -21,6 +21,7 @@ from .views import (
     ProjectRoleListCreateView,
     ProjectProgressReportView,
     RecentProjectsView,
+    OrganizationReleaseListView,
     SprintCompleteView,
     SprintDetailView,
     SprintListCreateView,
@@ -141,5 +142,10 @@ urlpatterns = [
         "projects/<uuid:project_id>/members/<int:user_id>/reports/progress/",
         MemberProgressReportView.as_view(),
         name="member-progress-report",
+    ),
+    path(
+        "orgs/releases/",
+        OrganizationReleaseListView.as_view(),
+        name="organization-releases",
     ),
 ]

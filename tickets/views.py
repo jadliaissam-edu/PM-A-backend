@@ -6,7 +6,7 @@ from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework_simplejwt.authentication import JWTAuthentication
+from accounts.authentication import JWTAuthentication
 
 from project.models import BoardColumn, Project, Release, Sprint
 
@@ -21,9 +21,37 @@ from .serializer import (
 )
 
 
-class AuthenticatedAPIView(APIView):
+class GlobalTicketListView(APIView):
     authentication_classes = [JWTAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticated]
+    def get(self, request):
+        organization_id = request.query_params.get("organization_id")
+        workspace_id = request.query_params.get("workspace_id")
+        status_filter = request.query_params.get("status")
+        priority_filter = request.query_params.get("priority")
+        search = request.query_params.get("search")
+
+        tickets = (
+            Ticket.objects.all()
+            .select_related("project__workspace__organization", "current_column", "sprint", "release")
+            .prefetch_related("assignments__user")
+            .order_by("-created_at")
+        )
+
+        if organization_id:
+            tickets = tickets.filter(project__workspace__organization_id=organization_id)
+        if workspace_id:
+            tickets = tickets.filter(project__workspace_id=workspace_id)
+        if status_filter:
+            tickets = tickets.filter(status=status_filter)
+        if priority_filter:
+            tickets = tickets.filter(priority=priority_filter)
+        if search:
+            tickets = tickets.filter(Q(title__icontains=search) | Q(description_markdown__icontains=search))
+
+        return Response(TicketSerializer(tickets, many=True).data)
+
+
 
 
 def get_project(project_id):
@@ -37,6 +65,9 @@ def get_project_ticket(project_id, ticket_id):
         project_id=project_id,
     )
 
+class AuthenticatedAPIView(APIView):
+    authentication_classes = [JWTAuthentication, SessionAuthentication]
+    permission_classes = [IsAuthenticated]
 
 class ProjectTicketListCreateView(AuthenticatedAPIView):
     def get(self, request, project_id):

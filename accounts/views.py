@@ -51,10 +51,31 @@ def set_refresh_cookie(response, refresh_token):
     )
 
 
+def set_access_cookie(response, access_token):
+    max_age = int(settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds())
+    response.set_cookie(
+        settings.JWT_ACCESS_COOKIE,
+        access_token,
+        max_age=max_age,
+        httponly=settings.JWT_COOKIE_HTTP_ONLY,
+        secure=settings.JWT_COOKIE_SECURE,
+        samesite=settings.JWT_COOKIE_SAMESITE,
+        path=settings.JWT_ACCESS_COOKIE_PATH,
+    )
+
+
 def clear_refresh_cookie(response):
     response.delete_cookie(
         settings.JWT_REFRESH_COOKIE,
         path=settings.JWT_REFRESH_COOKIE_PATH,
+        samesite=settings.JWT_COOKIE_SAMESITE,
+    )
+
+
+def clear_access_cookie(response):
+    response.delete_cookie(
+        settings.JWT_ACCESS_COOKIE,
+        path=settings.JWT_ACCESS_COOKIE_PATH,
         samesite=settings.JWT_COOKIE_SAMESITE,
     )
 
@@ -66,7 +87,10 @@ class EmailTokenObtainPairView(TokenObtainPairView):
 
     def post(self, request, *args, **kwargs):
         response = super().post(request, *args, **kwargs)
+        access_token = response.data.get("access")
         refresh_token = response.data.get("refresh")
+        if access_token:
+            set_access_cookie(response, access_token)
         if refresh_token:
             set_refresh_cookie(response, refresh_token)
         return response
@@ -88,7 +112,13 @@ class CookieTokenRefreshView(APIView):
 
         serializer = TokenRefreshSerializer(data={"refresh": refresh_token})
         serializer.is_valid(raise_exception=True)
-        return Response(serializer.validated_data, status=status.HTTP_200_OK)
+        response = Response(serializer.validated_data, status=status.HTTP_200_OK)
+        access_token = serializer.validated_data.get("access")
+        if access_token:
+            set_access_cookie(response, access_token)
+        if serializer.validated_data.get("refresh"):
+            set_refresh_cookie(response, serializer.validated_data["refresh"])
+        return response
 
 class LogoutView(APIView):
     permission_classes = [permissions.AllowAny]
@@ -108,6 +138,7 @@ class LogoutView(APIView):
         )
 
         if not refresh_token:
+            clear_access_cookie(response)
             clear_refresh_cookie(response)
             return response
 
@@ -117,6 +148,7 @@ class LogoutView(APIView):
         except Exception:
             return Response({"detail": "Invalid or expired token."}, status=status.HTTP_400_BAD_REQUEST)
 
+        clear_access_cookie(response)
         clear_refresh_cookie(response)
         return response
 

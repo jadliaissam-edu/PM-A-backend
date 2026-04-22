@@ -23,10 +23,12 @@ from .views import (
     TicketMoveView,
     TicketStatusView,
     TicketTimeEntryListCreateView,
+    GlobalTicketListView
 )
 
 
 urlpatterns = [
+    path("tickets/", GlobalTicketListView.as_view(), name="global-ticket-list"),
     path("projects/<uuid:project_id>/tickets/", ProjectTicketListCreateView.as_view()),
     path("projects/<uuid:project_id>/tickets/<uuid:ticket_id>/", TicketDetailView.as_view()),
     path("projects/<uuid:project_id>/tickets/<uuid:ticket_id>/status/", TicketStatusView.as_view()),

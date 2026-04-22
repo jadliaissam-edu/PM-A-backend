@@ -15,7 +15,6 @@ class ProjectTreeSerializer(serializers.ModelSerializer):
             "name",
             "description",
             "type",
-            "visibility",
             "status",
             "created_at",
             "board_id",
@@ -28,7 +27,7 @@ class OrganizationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Organization
-        fields = ["id", "name", "created_at", "workspace_count", "project_count"]
+        fields = ["id", "name", "logo_url", "created_at", "workspace_count", "project_count"]
 
 
 class WorkspaceSerializer(serializers.ModelSerializer):
@@ -42,7 +41,6 @@ class WorkspaceSerializer(serializers.ModelSerializer):
             "organization",
             "organization_name",
             "name",
-            "visibility",
             "project_count",
         ]
 
@@ -52,7 +50,7 @@ class WorkspaceTreeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Workspace
-        fields = ["id", "name", "visibility", "projects"]
+        fields = ["id", "name", "projects"]
 
 
 class OrganizationTreeSerializer(serializers.ModelSerializer):
@@ -60,7 +58,7 @@ class OrganizationTreeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Organization
-        fields = ["id", "name", "created_at", "workspaces"]
+        fields = ["id", "name", "logo_url", "created_at", "workspaces"]
 
 
 class InvitationSerializer(serializers.ModelSerializer):

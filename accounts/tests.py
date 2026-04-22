@@ -16,6 +16,7 @@ class LoginViewTest(TestCase):
         self.assertIn('access', response.json())
         self.assertEqual(response.json()['email'], 'test@example.com')
         self.assertIn(settings.JWT_REFRESH_COOKIE, response.cookies)
+        self.assertIn(settings.JWT_ACCESS_COOKIE, response.cookies)
 
     def test_login_with_duplicate_email_uses_matching_password(self):
         User.objects.create_user(username='seconduser', email='test@example.com', password='otherpass')
@@ -53,6 +54,43 @@ class LoginViewTest(TestCase):
 
         response = self.client.post(
             '/api/auth/token/refresh/',
+            {},
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('access', response.json())
+
+    def test_login_sets_cookie_for_api_path(self):
+        response = self.client.post(
+            '/api/auth/login/',
+            {'email': 'test@example.com', 'password': 'testpass'},
+            content_type='application/json',
+        )
+
+        self.assertEqual(
+            response.cookies[settings.JWT_REFRESH_COOKIE]['path'],
+            settings.JWT_REFRESH_COOKIE_PATH,
+        )
+        self.assertEqual(settings.JWT_REFRESH_COOKIE_PATH, '/api/')
+        self.assertEqual(
+            response.cookies[settings.JWT_ACCESS_COOKIE]['path'],
+            settings.JWT_ACCESS_COOKIE_PATH,
+        )
+        self.assertEqual(settings.JWT_ACCESS_COOKIE_PATH, '/api/')
+
+    def test_legacy_refresh_uses_cookie(self):
+        login_response = self.client.post(
+            '/api/auth/login/',
+            {'email': 'test@example.com', 'password': 'testpass'},
+            content_type='application/json',
+        )
+
+        refresh_cookie = login_response.cookies[settings.JWT_REFRESH_COOKIE].value
+        self.client.cookies[settings.JWT_REFRESH_COOKIE] = refresh_cookie
+
+        response = self.client.post(
+            '/api/token/refresh/',
             {},
             content_type='application/json',
         )

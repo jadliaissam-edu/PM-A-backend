@@ -8,7 +8,7 @@ from rest_framework.decorators import api_view
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework_simplejwt.authentication import JWTAuthentication
+from accounts.authentication import JWTAuthentication
 
 from orgs.models import Organization, Workspace
 from orgs.serializers import OrganizationTreeSerializer
@@ -32,6 +32,7 @@ from .serializer import (
     ProjectMemberSerializer,
     ProjectSerializer,
     SprintSerializer,
+    ReleaseSerializer,
 )
 
 
@@ -122,8 +123,21 @@ class DashboardView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        projects = list(base_project_queryset()[:6])
-        organizations = Organization.objects.prefetch_related(
+        organization_id = request.query_params.get("organization_id")
+        
+        projects_qs = base_project_queryset()
+        orgs_qs = Organization.objects.all()
+        workspaces_qs = Workspace.objects.all()
+        projects_base_qs = Project.objects.all()
+
+        if organization_id:
+            projects_qs = projects_qs.filter(workspace__organization_id=organization_id)
+            orgs_qs = orgs_qs.filter(id=organization_id)
+            workspaces_qs = workspaces_qs.filter(organization_id=organization_id)
+            projects_base_qs = projects_base_qs.filter(workspace__organization_id=organization_id)
+
+        projects = list(projects_qs[:6])
+        organizations = orgs_qs.prefetch_related(
             Prefetch(
                 "workspaces",
                 queryset=Workspace.objects.prefetch_related(
@@ -134,12 +148,12 @@ class DashboardView(APIView):
 
         response = {
             "summary": {
-                "organizations": Organization.objects.count(),
-                "workspaces": Workspace.objects.count(),
-                "projects": Project.objects.count(),
-                "active_projects": Project.objects.filter(status="active").count(),
-                "archived_projects": Project.objects.filter(status="archived").count(),
-                "closed_projects": Project.objects.filter(status="closed").count(),
+                "organizations": orgs_qs.count(),
+                "workspaces": workspaces_qs.count(),
+                "projects": projects_base_qs.count(),
+                "active_projects": projects_base_qs.filter(status="active").count(),
+                "archived_projects": projects_base_qs.filter(status="archived").count(),
+                "closed_projects": projects_base_qs.filter(status="closed").count(),
             },
             "recent_projects": ProjectSerializer(projects, many=True).data,
             "organizations": OrganizationTreeSerializer(organizations, many=True).data,
@@ -158,7 +172,11 @@ class RecentProjectsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        projects = base_project_queryset()[:6]
+        organization_id = request.query_params.get("organization_id")
+        projects = base_project_queryset()
+        if organization_id:
+            projects = projects.filter(workspace__organization_id=organization_id)
+        projects = projects[:6]
         return Response(ProjectSerializer(projects, many=True).data)
 
 
@@ -234,6 +252,23 @@ class ProjectDetailView(APIView):
         project = self.get_project(project_id)
         project.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class OrganizationReleaseListView(APIView):
+    authentication_classes = [JWTAuthentication, SessionAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        organization_id = request.query_params.get("organization_id")
+        if not organization_id:
+            # Fallback to all projects if no org_id (though org context is preferred)
+            releases = Release.objects.all().select_related("project").order_by("-target_date")[:10]
+        else:
+            releases = Release.objects.filter(
+                project__workspace__organization_id=organization_id
+            ).select_related("project").order_by("-target_date")
+        
+        return Response(ReleaseSerializer(releases, many=True).data)
 
 
 class ProjectArchiveView(APIView):

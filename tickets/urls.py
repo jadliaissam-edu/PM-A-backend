@@ -25,6 +25,7 @@ from .views import (
     TicketTimeEntryListCreateView,
     GlobalTicketListView
 )
+from .views_search import TicketSearchView
 
 
 urlpatterns = [
@@ -93,4 +94,5 @@ urlpatterns = [
         "projects/<uuid:project_id>/releases/<uuid:release_id>/issues-summary/",
         ReleaseIssuesSummaryView.as_view(),
     ),
+    path("projects/<uuid:project_id>/tickets/search", TicketSearchView.as_view()),
 ]

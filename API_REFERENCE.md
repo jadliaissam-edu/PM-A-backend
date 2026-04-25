@@ -518,6 +518,30 @@ Response `200 OK`:
 ]
 ```
 
+### GET `/api/core/notifications/`
+
+Liste les 50 dernières notifications de l'utilisateur authentifié (triées par date décroissante).
+
+**Headers requis** :
+
+    Authorization: Bearer <access-token>
+
+**Réponse `200 OK`** :
+
+```json
+[
+  {
+    "id": "b1c2...",
+    "project_id": "a2d3...",
+    "user": 1,
+    "event_type": "mention",
+    "payload_json": {"message": "Vous avez été mentionné dans le ticket PM-12"},
+    "created_at": "2026-04-25T10:00:00Z"
+  },
+  ...
+]
+```
+
 ## Projects
 
 All endpoints below require JWT authentication.

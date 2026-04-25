@@ -40,6 +40,8 @@ urlpatterns = [
     path('api/', include('collaboration.urls')),
     path('api/orgs/', include('orgs.urls')),
     path('api/core/', include('core.urls')),
+    path('api/', include('tickets.urls_ticket_history')),
+    path('api/', include('core.urls_audit')),
     
     # OpenAPI schema (JSON)
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),

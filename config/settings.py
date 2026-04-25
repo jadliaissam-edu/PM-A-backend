@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     'drf_spectacular', 
     'orgs',
     'core',
+    'channels',
 ]
 
 REST_FRAMEWORK = { 
@@ -116,6 +117,14 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'config.wsgi.application'
+ASGI_APPLICATION = 'config.asgi.application'
+
+# Channels layer (in-memory for dev, Redis for prod)
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
+    }
+}
 
 # Base de données (SQLite par défaut)
 DATABASES = {

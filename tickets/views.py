@@ -19,6 +19,9 @@ from .serializer import (
     TicketSerializer,
     TimeEntrySerializer,
 )
+from .models_ticket_history import TicketHistory, TicketHistoryAction
+from .serializers_ticket_history import TicketHistorySerializer
+import copy
 
 
 class GlobalTicketListView(APIView):
@@ -101,6 +104,14 @@ class ProjectTicketListCreateView(AuthenticatedAPIView):
         serializer = TicketSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         ticket = serializer.save(project=project)
+        # Log creation
+        TicketHistory.objects.create(
+            ticket=ticket,
+            user=request.user,
+            action=TicketHistoryAction.CREATE,
+            before=None,
+            after=TicketSerializer(ticket).data,
+        )
         ticket = get_project_ticket(project_id, ticket.id)
         return Response(TicketSerializer(ticket).data, status=status.HTTP_201_CREATED)
 
@@ -112,9 +123,19 @@ class TicketDetailView(AuthenticatedAPIView):
 
     def patch(self, request, project_id, ticket_id):
         ticket = get_project_ticket(project_id, ticket_id)
+        before = TicketSerializer(ticket).data
         serializer = TicketSerializer(ticket, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        ticket = serializer.save()
+        after = TicketSerializer(ticket).data
+        # Log update
+        TicketHistory.objects.create(
+            ticket=ticket,
+            user=request.user,
+            action=TicketHistoryAction.UPDATE,
+            before=before,
+            after=after,
+        )
         ticket = get_project_ticket(project_id, ticket_id)
         return Response(TicketSerializer(ticket).data)
 

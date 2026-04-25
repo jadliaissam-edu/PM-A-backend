@@ -223,7 +223,17 @@ class ProjectListCreateView(APIView):
             user=request.user,
             defaults={"role": RoleName.ADMIN},
         )
-
+        # Notification creation
+        NotificationEvent.objects.create(
+            project_id=project.id,
+            user=request.user,
+            event_type="project_created",
+            payload_json={
+                "message": f"Projet '{project.name}' créé.",
+                "project_name": project.name,
+                "project_id": str(project.id),
+            },
+        )
         project = base_project_queryset().get(id=project.id)
         return Response(ProjectSerializer(project).data, status=status.HTTP_201_CREATED)
 

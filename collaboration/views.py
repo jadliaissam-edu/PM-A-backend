@@ -1,5 +1,6 @@
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
-from rest_framework import status
+from rest_framework import status, viewsets
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -8,13 +9,50 @@ from accounts.authentication import JWTAuthentication
 
 from tickets.models import Ticket
 
-from .models import Comment, Reaction
-from .serializer import CommentSerializer, ReactionSerializer
+from .models import ChatChannel, ChatMessage, Comment, Reaction
+from .serializer import ChatChannelSerializer, ChatMessageSerializer, CommentSerializer, ReactionSerializer
 
 
 class AuthenticatedAPIView(APIView):
     authentication_classes = [JWTAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticated]
+
+
+class ChatChannelViewSet(viewsets.ModelViewSet):
+    authentication_classes = [JWTAuthentication, SessionAuthentication]
+    permission_classes = [IsAuthenticated]
+    serializer_class = ChatChannelSerializer
+
+    def get_queryset(self):
+        org_id = self.request.query_params.get("organization_id")
+        if org_id:
+            return ChatChannel.objects.filter(organization_id=org_id)
+        return ChatChannel.objects.none()
+
+    def perform_create(self, serializer):
+        serializer.save()
+
+
+class ChatMessageViewSet(viewsets.ModelViewSet):
+    authentication_classes = [JWTAuthentication, SessionAuthentication]
+    permission_classes = [IsAuthenticated]
+    serializer_class = ChatMessageSerializer
+
+    def get_queryset(self):
+        channel_id = self.request.query_params.get("channel_id")
+        receiver_id = self.request.query_params.get("receiver_id")
+        
+        if channel_id:
+            return ChatMessage.objects.filter(channel_id=channel_id)
+        if receiver_id:
+            return ChatMessage.objects.filter(
+                (Q(sender=self.request.user) & Q(receiver_id=receiver_id)) |
+                (Q(sender_id=receiver_id) & Q(receiver=self.request.user))
+            ).filter(is_direct=True)
+        return ChatMessage.objects.none()
+
+    def perform_create(self, serializer):
+        serializer.save(sender=self.request.user)
 
 
 class CommentListCreateView(AuthenticatedAPIView):

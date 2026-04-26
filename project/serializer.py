@@ -3,7 +3,7 @@ from rest_framework import serializers
 
 from orgs.models import Workspace
 
-from .models import BoardColumn, Project, ProjectBoard, ProjectMember, Sprint, SprintReport, Release
+from .models import BoardColumn, Project, ProjectBoard, ProjectMember, Sprint, SprintReport, Release, ProjectDocument
 
 
 User = get_user_model()
@@ -36,7 +36,7 @@ class WorkspaceSummarySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Workspace
-        fields = ["id", "name", "visibility", "organization_id", "organization_name"]
+        fields = ["id", "name", "organization_id", "organization_name"]
 
 
 class ProjectSerializer(serializers.ModelSerializer):
@@ -48,8 +48,8 @@ class ProjectSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True,
     )
-    organization_id = serializers.UUIDField(source="workspace.organization.id", read_only=True)
-    organization_name = serializers.CharField(source="workspace.organization.name", read_only=True)
+    organization_id = serializers.SerializerMethodField()
+    organization_name = serializers.SerializerMethodField()
     board_id = serializers.UUIDField(source="board.id", read_only=True)
     member_count = serializers.IntegerField(read_only=True)
     ticket_count = serializers.IntegerField(read_only=True)
@@ -76,12 +76,20 @@ class ProjectSerializer(serializers.ModelSerializer):
             "id",
             "created_at",
             "workspace",
-            "organization_id",
-            "organization_name",
             "board_id",
             "member_count",
             "ticket_count",
         ]
+
+    def get_organization_id(self, obj):
+        if obj.workspace and obj.workspace.organization:
+            return obj.workspace.organization.id
+        return None
+
+    def get_organization_name(self, obj):
+        if obj.workspace and obj.workspace.organization:
+            return obj.workspace.organization.name
+        return None
 
 
 class BoardColumnSerializer(serializers.ModelSerializer):
@@ -157,3 +165,9 @@ class ReleaseSerializer(serializers.ModelSerializer):
             "status",
         ]
         read_only_fields = ["id", "project_name"]
+
+
+class ProjectDocumentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProjectDocument
+        fields = "__all__"

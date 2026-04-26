@@ -23,6 +23,7 @@ from .models import (
     Release,
     RoleName,
     Sprint,
+    ProjectDocument,
 )
 from .serializer import (
     BoardColumnSerializer,
@@ -33,6 +34,7 @@ from .serializer import (
     ProjectSerializer,
     SprintSerializer,
     ReleaseSerializer,
+    ProjectDocumentSerializer,
 )
 
 
@@ -640,3 +642,38 @@ class MemberProgressReportView(APIView):
                 "activity_count": hours,
             }
         )
+
+class ProjectDocumentListView(APIView):
+    authentication_classes = [JWTAuthentication, SessionAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, project_id):
+        documents = ProjectDocument.objects.filter(project_id=project_id)
+        return Response(ProjectDocumentSerializer(documents, many=True).data)
+
+    def post(self, request, project_id):
+        project = get_object_or_404(Project, id=project_id)
+        serializer = ProjectDocumentSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(project=project)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+class ProjectDocumentDetailView(APIView):
+    authentication_classes = [JWTAuthentication, SessionAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, project_id, document_id):
+        document = get_object_or_404(ProjectDocument, id=document_id, project_id=project_id)
+        return Response(ProjectDocumentSerializer(document).data)
+
+    def patch(self, request, project_id, document_id):
+        document = get_object_or_404(ProjectDocument, id=document_id, project_id=project_id)
+        serializer = ProjectDocumentSerializer(document, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    def delete(self, request, project_id, document_id):
+        document = get_object_or_404(ProjectDocument, id=document_id, project_id=project_id)
+        document.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

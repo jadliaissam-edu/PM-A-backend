@@ -43,9 +43,38 @@ class WorkspaceViewSet(AuthenticatedModelViewSet):
         return qs
 
 
+from django.core.mail import send_mail
+from django.template.loader import render_to_string
+from django.conf import settings
+
+
 class InvitationViewSet(AuthenticatedModelViewSet):
     queryset = Invitation.objects.select_related("workspace").order_by("-expires_at")
     serializer_class = InvitationSerializer
+
+    def perform_create(self, serializer):
+        invitation = serializer.save()
+        
+        # Send email
+        context = {
+            'workspace_name': invitation.workspace.name,
+            'invite_link': invitation.invite_link,
+        }
+        
+        html_message = render_to_string('orgs/emails/invitation.html', context)
+        plain_message = f"Rejoignez {invitation.workspace.name} sur AgileFlow : {invitation.invite_link}"
+        
+        try:
+            send_mail(
+                subject=f"Invitation à rejoindre {invitation.workspace.name} sur AgileFlow",
+                message=plain_message,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[invitation.email],
+                html_message=html_message,
+                fail_silently=False,
+            )
+        except Exception as e:
+            print(f"Failed to send invitation email: {e}")
 
 
 class OrganizationTreeView(APIView):

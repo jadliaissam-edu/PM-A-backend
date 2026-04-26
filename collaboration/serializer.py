@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Comment, Reaction
+from .models import ChatChannel, ChatMessage, Comment, Reaction
 
 
 class CommentSerializer(serializers.ModelSerializer):
@@ -28,3 +28,31 @@ class ReactionSerializer(serializers.ModelSerializer):
         model = Reaction
         fields = ["id", "comment", "user", "username", "type", "created_at"]
         read_only_fields = ["id", "comment", "user", "username", "created_at"]
+
+
+class ChatChannelSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ChatChannel
+        fields = ["id", "organization", "name", "description", "created_at"]
+
+
+class ChatMessageSerializer(serializers.ModelSerializer):
+    sender_username = serializers.CharField(source="sender.username", read_only=True)
+    receiver_username = serializers.CharField(source="receiver.username", read_only=True)
+    channel_name = serializers.CharField(source="channel.name", read_only=True)
+
+    class Meta:
+        model = ChatMessage
+        fields = [
+            "id",
+            "channel",
+            "channel_name",
+            "sender",
+            "sender_username",
+            "receiver",
+            "receiver_username",
+            "content",
+            "is_direct",
+            "created_at",
+        ]
+        read_only_fields = ["id", "sender", "sender_username", "receiver_username", "channel_name", "created_at"]

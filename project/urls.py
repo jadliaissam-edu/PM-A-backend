@@ -29,6 +29,8 @@ from .views import (
     SprintReportView,
     SprintStartView,
     UserDetailView,
+    ProjectDocumentListView,
+    ProjectDocumentDetailView,
     health_check,
 )
 

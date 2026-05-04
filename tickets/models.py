@@ -14,6 +14,12 @@ class TicketType(models.TextChoices):
     EPIC = "epic", "Epic"
     STORY = "story", "Story"
     SUBTASK = "sub_task", "SubTask"
+    VULNERABILITY = "vulnerability", "Security Vulnerability"
+    PATCH = "patch", "Patch"
+    INCIDENT = "incident", "Incident"
+    DEPLOYMENT = "deployment", "Deployment"
+    MONITORING = "monitoring", "Monitoring"
+    ROLLBACK = "rollback", "Rollback"
 
 class TicketPriority(models.TextChoices):
     CRITICAL = "critical", "Critical"

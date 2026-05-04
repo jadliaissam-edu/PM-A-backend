@@ -36,11 +36,13 @@ urlpatterns = [
     path('api/token/verify/', TokenVerifyView.as_view(), name='token_verify_legacy'),
     path('api/', include('role.urls')),
     path('api/',include('project.urls')),
-    path('api/auth/',include('accounts.urls')), 
-    path('api/', include('tickets.urls')),
-    path('api/', include('collaboration.urls')),
+    path('api/auth/',include('accounts.urls')),
+    path("api/collaboration/", include("collaboration.urls")),
+    path("api/activity/", include("activity.urls")),
+    path("api/search/", include("search.urls")),
     path('api/orgs/', include('orgs.urls')),
-    path('api/core/', include('core.urls')),
+    path('api/', include('tickets.urls')),
+    path('api/', include('core.urls')),
     
     # OpenAPI schema (JSON)
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),

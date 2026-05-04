@@ -108,32 +108,32 @@ print_info "Ticket ID: $TID"
 
 # 3. Comments CRUD
 print_step "3) Comments Management"
-call_api "POST" "/api/projects/${PROJ_ID}/tickets/${TID}/comments/" "{\"body\":\"This is a test comment\"}"
+call_api "POST" "/api/collaboration/projects/${PROJ_ID}/tickets/${TID}/comments/" "{\"body\":\"This is a test comment\"}"
 CID=$(json_get "id" "$HTTP_BODY")
 if [[ -z "$CID" ]]; then print_error "Comment creation failed"; exit 1; fi
 
-call_api "GET" "/api/projects/${PROJ_ID}/tickets/${TID}/comments/"
-call_api "PATCH" "/api/projects/${PROJ_ID}/tickets/${TID}/comments/${CID}/" "{\"body\":\"Updated comment\"}"
+call_api "GET" "/api/collaboration/projects/${PROJ_ID}/tickets/${TID}/comments/"
+call_api "PATCH" "/api/collaboration/projects/${PROJ_ID}/tickets/${TID}/comments/${CID}/" "{\"body\":\"Updated comment\"}"
 
 # 4. Reactions
 print_step "4) Reactions Management"
-call_api "POST" "/api/projects/${PROJ_ID}/tickets/${TID}/comments/${CID}/reactions/" "{\"type\":\"like\"}"
+call_api "POST" "/api/collaboration/projects/${PROJ_ID}/tickets/${TID}/comments/${CID}/reactions/" "{\"type\":\"like\"}"
 RID=$(json_get "id" "$HTTP_BODY")
 
-call_api "GET" "/api/projects/${PROJ_ID}/tickets/${TID}/comments/${CID}/reactions/"
-call_api "DELETE" "/api/projects/${PROJ_ID}/tickets/${TID}/comments/${CID}/reactions/${RID}/"
+call_api "GET" "/api/collaboration/projects/${PROJ_ID}/tickets/${TID}/comments/${CID}/reactions/"
+call_api "DELETE" "/api/collaboration/projects/${PROJ_ID}/tickets/${TID}/comments/${CID}/reactions/${RID}/"
 
 # 5. Chat Channels
 print_step "5) Chat Channels"
-call_api "POST" "/api/channels/" "{\"name\":\"General\", \"organization\":\"${ORG_ID}\", \"description\":\"Public channel\"}"
+call_api "POST" "/api/collaboration/projects/${PROJ_ID}/channels/" "{\"name\":\"General\", \"description\":\"Public channel\"}"
 CH_ID=$(json_get "id" "$HTTP_BODY")
 if [[ -z "$CH_ID" ]]; then print_error "Channel creation failed"; echo $HTTP_BODY; exit 1; fi
 
-call_api "GET" "/api/channels/?organization_id=${ORG_ID}"
+call_api "GET" "/api/collaboration/projects/${PROJ_ID}/channels/"
 
 # 6. Chat Messages
 print_step "6) Chat Messages"
-call_api "POST" "/api/messages/" "{\"content\":\"Hello world!\", \"channel\":\"${CH_ID}\"}"
-call_api "GET" "/api/messages/?channel_id=${CH_ID}"
+call_api "POST" "/api/collaboration/channels/${CH_ID}/messages/" "{\"content\":\"Hello world!\"}"
+call_api "GET" "/api/collaboration/channels/${CH_ID}/messages/"
 
 echo -e "\n${GREEN}Collaboration API test suite completed successfully!${NC}"

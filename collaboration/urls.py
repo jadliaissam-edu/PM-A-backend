@@ -1,21 +1,42 @@
 from django.urls import path, include
-from rest_framework.routers import SimpleRouter
-
+from rest_framework.routers import DefaultRouter
 from .views import (
-    ChatChannelViewSet,
-    ChatMessageViewSet,
     CommentDetailView,
     CommentListCreateView,
     ReactionDeleteView,
     ReactionListCreateView,
+    WorkspaceChannelListCreateView,
+    ProjectChannelListCreateView,
+    ChatMessageListCreateView,
+    DirectChannelGetCreateView,
+    GlobalCommentViewSet,
 )
 
-router = SimpleRouter()
-router.register(r"channels", ChatChannelViewSet, basename="chat-channels")
-router.register(r"messages", ChatMessageViewSet, basename="chat-messages")
+router = DefaultRouter()
+router.register(r"comments", GlobalCommentViewSet, basename="comment")
 
 urlpatterns = [
     path("", include(router.urls)),
+    path(
+        "workspaces/<uuid:workspace_id>/channels/",
+        WorkspaceChannelListCreateView.as_view(),
+        name="workspace-channels",
+    ),
+    path(
+        "projects/<uuid:project_id>/channels/",
+        ProjectChannelListCreateView.as_view(),
+        name="project-channels",
+    ),
+    path(
+        "channels/<uuid:channel_id>/messages/",
+        ChatMessageListCreateView.as_view(),
+        name="channel-messages",
+    ),
+    path(
+        "channels/direct/",
+        DirectChannelGetCreateView.as_view(),
+        name="direct-channel",
+    ),
     path(
         "projects/<uuid:project_id>/tickets/<uuid:ticket_id>/comments/",
         CommentListCreateView.as_view(),

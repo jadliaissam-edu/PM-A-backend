@@ -15,6 +15,7 @@ from .views import (
     ProjectArchiveView,
     ProjectCloseView,
     ProjectDetailView,
+    ProjectFromTemplateView,
     ProjectListCreateView,
     ProjectMembersView,
     ProjectRoleDetailView,
@@ -32,6 +33,8 @@ from .views import (
     UserListView,
     ProjectDocumentListView,
     ProjectDocumentDetailView,
+    ProjectFileListView,
+    ProjectFileDetailView,
     health_check,
 )
 
@@ -50,6 +53,7 @@ urlpatterns = [
         name="dashboard-recent-projects",
     ),
     path("projects/", ProjectListCreateView.as_view(), name="project-list-create"),
+    path("projects/from-template/", ProjectFromTemplateView.as_view(), name="project-from-template"),
     path("projects/<uuid:project_id>/", ProjectDetailView.as_view(), name="project-detail"),
     path(
         "projects/<uuid:project_id>/archive/",
@@ -161,5 +165,15 @@ urlpatterns = [
         "projects/<uuid:project_id>/documents/<uuid:document_id>/",
         ProjectDocumentDetailView.as_view(),
         name="project-document-detail",
+    ),
+    path(
+        "projects/<uuid:project_id>/files/",
+        ProjectFileListView.as_view(),
+        name="project-file-list",
+    ),
+    path(
+        "projects/<uuid:project_id>/files/<uuid:file_id>/",
+        ProjectFileDetailView.as_view(),
+        name="project-file-detail",
     ),
 ]

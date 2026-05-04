@@ -3,7 +3,7 @@ from rest_framework import serializers
 
 from orgs.models import Workspace
 
-from .models import BoardColumn, Project, ProjectBoard, ProjectMember, Sprint, SprintReport, Release, ProjectDocument
+from .models import BoardColumn, Project, ProjectBoard, ProjectMember, Sprint, SprintReport, Release, ProjectDocument, ProjectFile
 
 
 User = get_user_model()
@@ -172,3 +172,22 @@ class ProjectDocumentSerializer(serializers.ModelSerializer):
         model = ProjectDocument
         fields = "__all__"
         read_only_fields = ["project"]
+
+
+class ProjectFileSerializer(serializers.ModelSerializer):
+    uploaded_by_username = serializers.CharField(source="uploaded_by.username", read_only=True)
+
+    class Meta:
+        model = ProjectFile
+        fields = [
+            "id",
+            "project",
+            "uploaded_by",
+            "uploaded_by_username",
+            "file_name",
+            "file_url",
+            "mime_type",
+            "file_size",
+            "uploaded_at",
+        ]
+        read_only_fields = ["id", "project", "uploaded_by", "uploaded_by_username", "uploaded_at"]

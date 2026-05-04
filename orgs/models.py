@@ -4,6 +4,7 @@ from django.db import models
 
 class Organization(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='owned_organizations', null=True, blank=True)
     name = models.CharField(max_length=255)
     logo_url = models.URLField(max_length=500, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

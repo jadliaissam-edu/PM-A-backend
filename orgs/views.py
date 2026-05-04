@@ -1,3 +1,4 @@
+from django.db import models
 from django.db.models import Count, Prefetch
 from django.shortcuts import get_object_or_404
 from rest_framework import viewsets, status
@@ -27,12 +28,18 @@ class OrganizationViewSet(AuthenticatedModelViewSet):
     serializer_class = OrganizationSerializer
 
     def get_queryset(self):
+        # organizations where user is owner OR has membership
         return Organization.objects.filter(
-            workspaces__projects__members__user=self.request.user
+            models.Q(owner=self.request.user) |
+            models.Q(workspaces__members__user=self.request.user) |
+            models.Q(workspaces__projects__members__user=self.request.user)
         ).annotate(
             workspace_count=Count("workspaces", distinct=True),
             project_count=Count("workspaces__projects", distinct=True),
         ).distinct().order_by("name")
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
 
 
 class WorkspaceViewSet(AuthenticatedModelViewSet):

@@ -23,8 +23,13 @@ from .models import (
     Release,
     RoleName,
     Sprint,
+    SprintReport,
+    VelocityChart,
+    BurndownChart,
     ProjectDocument,
+    ProjectFile,
 )
+from .permissions import IsProjectMember, IsProjectAdmin
 from .serializer import (
     BoardColumnSerializer,
     BoardConfigSerializer,
@@ -35,7 +40,10 @@ from .serializer import (
     SprintSerializer,
     ReleaseSerializer,
     ProjectDocumentSerializer,
+    ProjectFileSerializer,
 )
+from activity.utils import log_activity
+from activity.emails import send_project_invitation_email
 
 
 User = get_user_model()
@@ -287,7 +295,7 @@ class ProjectListCreateView(APIView):
 
 class ProjectDetailView(APIView):
     authentication_classes = [JWTAuthentication, SessionAuthentication]
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsProjectMember]
 
     def get_project(self, request, project_id):
         return get_object_or_404(base_project_queryset(user=request.user), id=project_id)
@@ -398,11 +406,30 @@ class ProjectRoleListCreateView(APIView):
         project = get_object_or_404(Project, id=project_id)
         serializer = ProjectMemberSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        membership, _ = ProjectMember.objects.update_or_create(
+        membership, created = ProjectMember.objects.update_or_create(
             project=project,
             user=serializer.validated_data["user"],
             defaults={"role": serializer.validated_data["role"]},
         )
+        
+        log_activity(
+            actor=request.user,
+            target=membership,
+            action="role_change" if not created else "role_assign",
+            description=f"{'Changed' if not created else 'Assigned'} role of {membership.user.username} to {membership.role}",
+            project_id=project_id,
+            new_value={"role": membership.role}
+        )
+        
+        # Send Email Notification
+        if created:
+            send_project_invitation_email(
+                recipient_email=membership.user.email,
+                inviter_name=request.user.username,
+                project_name=project.name,
+                workspace_name=project.workspace.name if project.workspace else "General"
+            )
+        
         return Response(
             ProjectMemberSerializer(membership).data,
             status=status.HTTP_201_CREATED,
@@ -418,9 +445,21 @@ class ProjectRoleDetailView(APIView):
 
     def patch(self, request, project_id, role_id):
         membership = self.get_object(project_id, role_id)
+        old_role = membership.role
         serializer = ProjectMemberSerializer(membership, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        
+        log_activity(
+            actor=request.user,
+            target=membership,
+            action="role_change",
+            description=f"Changed role of {membership.user.username} from {old_role} to {membership.role}",
+            project_id=project_id,
+            old_value={"role": old_role},
+            new_value={"role": membership.role}
+        )
+        
         return Response(ProjectMemberSerializer(membership).data)
 
     def delete(self, request, project_id, role_id):
@@ -500,7 +539,7 @@ class BoardColumnDetailView(APIView):
 
 class SprintListCreateView(APIView):
     authentication_classes = [JWTAuthentication, SessionAuthentication]
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsProjectMember]
 
     def get_board(self, project_id):
         project = get_object_or_404(Project, id=project_id)
@@ -553,23 +592,86 @@ class SprintReportView(APIView):
 
 class SprintCompleteView(APIView):
     authentication_classes = [JWTAuthentication, SessionAuthentication]
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsProjectAdmin] # Only admins
 
     def post(self, request, project_id, sprint_id):
         sprint = get_object_or_404(Sprint, id=sprint_id, board__project_id=project_id)
         sprint.status = "closed"
         sprint.save(update_fields=["status"])
+        
+        # Calculate Analytics
+        from tickets.models import Ticket, TicketStatus
+        from django.db.models import Sum
+        
+        tickets = sprint.tickets.all()
+        total_count = tickets.count()
+        done_count = tickets.filter(status=TicketStatus.DONE).count()
+        
+        total_points = tickets.aggregate(Sum('estimate_story_points'))['estimate_story_points__sum'] or 0.0
+        done_points = tickets.filter(status=TicketStatus.DONE).aggregate(Sum('estimate_story_points'))['estimate_story_points__sum'] or 0.0
+        
+        SprintReport.objects.update_or_create(
+            sprint=sprint,
+            defaults={
+                "total_tickets": total_count,
+                "done_tickets": done_count,
+                "remaining_tickets": total_count - done_count,
+                "completion_rate": (done_count / total_count * 100) if total_count > 0 else 0
+            }
+        )
+        
+        VelocityChart.objects.update_or_create(
+            sprint=sprint,
+            defaults={
+                "data_json": {
+                    "completed_points": done_points,
+                    "planned_points": total_points,
+                    "efficiency": (done_points / total_points * 100) if total_points > 0 else 0
+                }
+            }
+        )
+        
+        BurndownChart.objects.update_or_create(
+            sprint=sprint,
+            defaults={
+                "data_json": {
+                    "start_points": total_points,
+                    "end_points": total_points - done_points,
+                    "points_history": [total_points, total_points - done_points] # Simplified 2-point history
+                }
+            }
+        )
+        
+        log_activity(
+            actor=request.user,
+            target=sprint,
+            action="sprint_complete",
+            description=f"Completed sprint '{sprint.name}'",
+            project_id=project_id,
+            new_value={"status": "closed"}
+        )
+        
         return Response({"message": "Sprint closed.", "sprint": SprintSerializer(sprint).data})
 
 
 class SprintStartView(APIView):
     authentication_classes = [JWTAuthentication, SessionAuthentication]
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsProjectAdmin] # Only admins
 
     def post(self, request, project_id, sprint_id):
         sprint = get_object_or_404(Sprint, id=sprint_id, board__project_id=project_id)
         sprint.status = "active"
         sprint.save(update_fields=["status"])
+        
+        log_activity(
+            actor=request.user,
+            target=sprint,
+            action="sprint_start",
+            description=f"Started sprint '{sprint.name}'",
+            project_id=project_id,
+            new_value={"status": "active"}
+        )
+        
         return Response({"message": "Sprint started.", "sprint": SprintSerializer(sprint).data})
 
 
@@ -732,3 +834,134 @@ class ProjectDocumentDetailView(APIView):
         document = get_object_or_404(ProjectDocument, id=document_id, project_id=project_id)
         document.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ProjectFileListView(APIView):
+    authentication_classes = [JWTAuthentication, SessionAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, project_id):
+        files = ProjectFile.objects.filter(project_id=project_id).select_related("uploaded_by")
+        return Response(ProjectFileSerializer(files, many=True).data)
+
+    def post(self, request, project_id):
+        project = get_object_or_404(Project, id=project_id)
+        serializer = ProjectFileSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file_obj = serializer.save(project=project, uploaded_by=request.user)
+        
+        log_activity(
+            actor=request.user,
+            target=file_obj,
+            action="file_upload",
+            description=f"Uploaded file '{file_obj.file_name}' to project",
+            project_id=project_id
+        )
+        
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+class ProjectFileDetailView(APIView):
+    authentication_classes = [JWTAuthentication, SessionAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, project_id, file_id):
+        file_obj = get_object_or_404(ProjectFile, id=file_id, project_id=project_id)
+        return Response(ProjectFileSerializer(file_obj).data)
+
+    def delete(self, request, project_id, file_id):
+        file_obj = get_object_or_404(ProjectFile, id=file_id, project_id=project_id)
+        file_obj.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ProjectFromTemplateView(APIView):
+    authentication_classes = [JWTAuthentication, SessionAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    TEMPLATES = {
+        "1": { # Scrum
+            "columns": [
+                {"name": "Backlog", "position": 1},
+                {"name": "To Do", "position": 2},
+                {"name": "In Progress", "position": 3},
+                {"name": "Done", "position": 4, "is_done_column": True},
+            ],
+            "labels": ["sprint-goal", "tech-debt", "spike"]
+        },
+        "2": { # Kanban
+            "columns": [
+                {"name": "To Do", "position": 1},
+                {"name": "In Progress", "position": 2},
+                {"name": "Review", "position": 3},
+                {"name": "Done", "position": 4, "is_done_column": True},
+            ],
+            "labels": ["blocked", "ready-for-review"]
+        },
+        "3": { # Bug Tracking
+            "columns": [
+                {"name": "New", "position": 1},
+                {"name": "Assigned", "position": 2},
+                {"name": "Fixing", "position": 3},
+                {"name": "Validated", "position": 4, "is_done_column": True},
+            ],
+            "labels": ["security", "regression", "hotfix"]
+        },
+        "4": { # DevOps
+            "columns": [
+                {"name": "Planned", "position": 1},
+                {"name": "Deploying", "position": 2},
+                {"name": "Monitoring", "position": 3},
+                {"name": "Completed", "position": 4, "is_done_column": True},
+            ],
+            "labels": ["prod", "staging", "pipeline-fail"]
+        }
+    }
+
+    def post(self, request):
+        template_id = str(request.data.get("template_id"))
+        project_name = request.data.get("project_name")
+        project_key = request.data.get("project_key", project_name[:4].upper() if project_name else "PROJ")
+        workspace_id = request.data.get("workspace_id")
+        
+        if template_id not in self.TEMPLATES:
+            return Response({"error": "Invalid template_id"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        template = self.TEMPLATES[template_id]
+        
+        # Create Project
+        project = Project.objects.create(
+            name=project_name,
+            key=project_key,
+            workspace_id=workspace_id,
+            status="active"
+        )
+        
+        # Create Board
+        board = ProjectBoard.objects.create(project=project)
+        
+        # Create Columns
+        for col_data in template["columns"]:
+            BoardColumn.objects.create(board=board, **col_data)
+            
+        # Create Dashboard
+        ensure_project_dashboard(project)
+        
+        # Add Creator as Admin
+        ProjectMember.objects.create(
+            project=project,
+            user=request.user,
+            role=RoleName.ADMIN
+        )
+        
+        log_activity(
+            actor=request.user,
+            target=project,
+            action="project_created",
+            description=f"Created project '{project_name}' from template {template_id}",
+            project_id=project.id
+        )
+        
+        return Response({
+            "message": "Project created successfully from template",
+            "project": ProjectSerializer(project).data
+        }, status=status.HTTP_201_CREATED)

@@ -61,6 +61,8 @@ INSTALLED_APPS = [
     'drf_spectacular', 
     'orgs',
     'core',
+    'activity',
+    'search',
 ]
 
 REST_FRAMEWORK = { 

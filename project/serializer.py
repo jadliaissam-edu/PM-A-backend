@@ -171,3 +171,4 @@ class ProjectDocumentSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProjectDocument
         fields = "__all__"
+        read_only_fields = ["project"]

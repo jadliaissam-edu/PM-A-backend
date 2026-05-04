@@ -26,7 +26,13 @@ class ChatChannelViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         org_id = self.request.query_params.get("organization_id")
         if org_id:
-            return ChatChannel.objects.filter(organization_id=org_id)
+            from orgs.models import WorkspaceMember
+            # Check if user is in any workspace of this organization
+            is_member = WorkspaceMember.objects.filter(user=self.request.user, workspace__organization_id=org_id).exists() or \
+                        self.request.user.project_memberships.filter(project__workspace__organization_id=org_id).exists()
+            
+            if is_member:
+                return ChatChannel.objects.filter(organization_id=org_id)
         return ChatChannel.objects.none()
 
     def perform_create(self, serializer):

@@ -34,6 +34,7 @@ urlpatterns = [
     path('api/login/', TokenObtainPairView.as_view(), name='token_obtain_pair_legacy'),
     path('api/token/refresh/', CookieTokenRefreshView.as_view(), name='token_refresh_legacy'),
     path('api/token/verify/', TokenVerifyView.as_view(), name='token_verify_legacy'),
+    path('api/', include('role.urls')),
     path('api/',include('project.urls')),
     path('api/auth/',include('accounts.urls')), 
     path('api/', include('tickets.urls')),

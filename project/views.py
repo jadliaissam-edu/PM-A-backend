@@ -1,5 +1,5 @@
 from django.contrib.auth import get_user_model
-from django.db import connection
+from django.db import connection, models
 from django.db.models import Count, IntegerField, Prefetch, Value
 from django.shortcuts import get_object_or_404
 from rest_framework import status
@@ -48,16 +48,20 @@ DEFAULT_BOARD_COLUMNS = [
 ]
 
 
-def base_project_queryset():
+def base_project_queryset(user=None):
     annotations = {"member_count": Count("members", distinct=True)}
     if "tickets_ticket" in connection.introspection.table_names():
         annotations["ticket_count"] = Count("tickets", distinct=True)
     else:
         annotations["ticket_count"] = Value(0, output_field=IntegerField())
 
+    queryset = Project.objects.select_related("workspace__organization").prefetch_related("members__user")
+    
+    if user:
+        queryset = queryset.filter(members__user=user)
+
     return (
-        Project.objects.select_related("workspace__organization")
-        .prefetch_related("members__user")
+        queryset
         .annotate(**annotations)
         .order_by("-created_at")
     )
@@ -120,6 +124,48 @@ class UserDetailView(APIView):
         )
 
 
+class UserListView(APIView):
+    authentication_classes = [JWTAuthentication, SessionAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        organization_id = request.query_params.get("organization_id")
+        
+        # Comprehensive queryset: users who share a workspace with the current user
+        # We look at shared workspaces via WorkspaceMember OR shared projects
+        from orgs.models import WorkspaceMember
+        
+        user_workspaces = WorkspaceMember.objects.filter(user=request.user).values_list('workspace_id', flat=True)
+        user_project_workspaces = request.user.project_memberships.values_list('project__workspace_id', flat=True)
+        
+        all_workspace_ids = set(list(user_workspaces) + list(user_project_workspaces))
+        
+        queryset = User.objects.filter(
+            models.Q(workspace_memberships__workspace_id__in=all_workspace_ids) |
+            models.Q(project_memberships__project__workspace_id__in=all_workspace_ids)
+        ).distinct()
+
+        if organization_id:
+            queryset = queryset.filter(
+                models.Q(workspace_memberships__workspace__organization_id=organization_id) |
+                models.Q(project_memberships__project__workspace__organization_id=organization_id)
+            ).distinct()
+
+        users = queryset.order_by("username")
+        return Response(
+            [
+                {
+                    "id": str(user.id),
+                    "username": user.username,
+                    "email": user.email,
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                }
+                for user in users
+            ]
+        )
+
+
 class DashboardView(APIView):
     authentication_classes = [JWTAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticated]
@@ -127,10 +173,10 @@ class DashboardView(APIView):
     def get(self, request):
         organization_id = request.query_params.get("organization_id")
         
-        projects_qs = base_project_queryset()
-        orgs_qs = Organization.objects.all()
-        workspaces_qs = Workspace.objects.all()
-        projects_base_qs = Project.objects.all()
+        projects_qs = base_project_queryset(user=request.user)
+        orgs_qs = Organization.objects.filter(workspaces__projects__members__user=request.user).distinct()
+        workspaces_qs = Workspace.objects.filter(projects__members__user=request.user).distinct()
+        projects_base_qs = Project.objects.filter(members__user=request.user).distinct()
 
         if organization_id:
             projects_qs = projects_qs.filter(workspace__organization_id=organization_id)
@@ -142,9 +188,9 @@ class DashboardView(APIView):
         organizations = orgs_qs.prefetch_related(
             Prefetch(
                 "workspaces",
-                queryset=Workspace.objects.prefetch_related(
-                    Prefetch("projects", queryset=base_project_queryset())
-                ).order_by("name"),
+                queryset=Workspace.objects.filter(projects__members__user=request.user).prefetch_related(
+                    Prefetch("projects", queryset=base_project_queryset(user=request.user))
+                ).distinct().order_by("name"),
             )
         ).order_by("name")
 
@@ -175,7 +221,7 @@ class RecentProjectsView(APIView):
 
     def get(self, request):
         organization_id = request.query_params.get("organization_id")
-        projects = base_project_queryset()
+        projects = base_project_queryset(user=request.user)
         if organization_id:
             projects = projects.filter(workspace__organization_id=organization_id)
         projects = projects[:6]
@@ -187,7 +233,7 @@ class DashboardProjectsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        projects = base_project_queryset()
+        projects = base_project_queryset(user=request.user)
         return Response(ProjectSerializer(projects, many=True).data)
 
 
@@ -196,7 +242,7 @@ class ProjectListCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        projects = base_project_queryset()
+        projects = base_project_queryset(user=request.user)
 
         workspace_id = request.query_params.get("workspace_id")
         organization_id = request.query_params.get("organization_id")
@@ -225,6 +271,15 @@ class ProjectListCreateView(APIView):
             user=request.user,
             defaults={"role": RoleName.ADMIN},
         )
+        
+        # Also ensure membership in the workspace
+        if project.workspace:
+            from orgs.models import WorkspaceMember
+            WorkspaceMember.objects.get_or_create(
+                workspace=project.workspace,
+                user=request.user,
+                defaults={"role": "Admin"}
+            )
 
         project = base_project_queryset().get(id=project.id)
         return Response(ProjectSerializer(project).data, status=status.HTTP_201_CREATED)
@@ -234,24 +289,24 @@ class ProjectDetailView(APIView):
     authentication_classes = [JWTAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticated]
 
-    def get_project(self, project_id):
-        return get_object_or_404(base_project_queryset(), id=project_id)
+    def get_project(self, request, project_id):
+        return get_object_or_404(base_project_queryset(user=request.user), id=project_id)
 
     def get(self, request, project_id):
-        project = self.get_project(project_id)
+        project = self.get_project(request, project_id)
         return Response(ProjectSerializer(project).data)
 
     def patch(self, request, project_id):
-        project = self.get_project(project_id)
+        project = self.get_project(request, project_id)
         serializer = ProjectSerializer(project, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         project.refresh_from_db()
-        project = self.get_project(project_id)
+        project = self.get_project(request, project_id)
         return Response(ProjectSerializer(project).data)
 
     def delete(self, request, project_id):
-        project = self.get_project(project_id)
+        project = self.get_project(request, project_id)
         project.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -278,10 +333,10 @@ class ProjectArchiveView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, project_id):
-        project = get_object_or_404(Project, id=project_id)
+        project = get_object_or_404(Project, id=project_id, members__user=request.user)
         project.status = "archived"
         project.save(update_fields=["status"])
-        project = base_project_queryset().get(id=project.id)
+        project = base_project_queryset(user=request.user).get(id=project.id)
         return Response(ProjectSerializer(project).data)
 
 
@@ -290,10 +345,10 @@ class ProjectCloseView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, project_id):
-        project = get_object_or_404(Project, id=project_id)
+        project = get_object_or_404(Project, id=project_id, members__user=request.user)
         project.status = "closed"
         project.save(update_fields=["status"])
-        project = base_project_queryset().get(id=project.id)
+        project = base_project_queryset(user=request.user).get(id=project.id)
         return Response(ProjectSerializer(project).data)
 
 
@@ -303,7 +358,7 @@ class ProjectMembersView(APIView):
 
     def get(self, request, project_id):
         project = get_object_or_404(
-            Project.objects.prefetch_related("members__user"), id=project_id
+            Project.objects.filter(members__user=request.user).prefetch_related("members__user"), id=project_id
         )
         members = project.members.select_related("user").order_by("user__username")
         return Response(

@@ -29,6 +29,7 @@ from .views import (
     SprintReportView,
     SprintStartView,
     UserDetailView,
+    UserListView,
     ProjectDocumentListView,
     ProjectDocumentDetailView,
     health_check,
@@ -37,6 +38,7 @@ from .views import (
 
 urlpatterns = [
     path("health/", health_check, name="health_check"),
+    path("users/", UserListView.as_view(), name="user-list"),
     path("users/me/", CurrentUserProfileView.as_view(), name="current-user-profile"),
     path("users/<int:user_id>/", UserDetailView.as_view(), name="user-detail"),
     path("dashboard/", DashboardView.as_view(), name="dashboard"),
@@ -149,5 +151,15 @@ urlpatterns = [
         "orgs/releases/",
         OrganizationReleaseListView.as_view(),
         name="organization-releases",
+    ),
+    path(
+        "projects/<uuid:project_id>/documents/",
+        ProjectDocumentListView.as_view(),
+        name="project-document-list",
+    ),
+    path(
+        "projects/<uuid:project_id>/documents/<uuid:document_id>/",
+        ProjectDocumentDetailView.as_view(),
+        name="project-document-detail",
     ),
 ]

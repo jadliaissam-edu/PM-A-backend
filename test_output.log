@@ -1,0 +1,44 @@
+
+[0;32m==> 1) Setup Owner[0m
+[POST] /api/auth/register/ -> 201
+[POST] /api/auth/login/ -> 200
+[1;33mINFO: Owner ID: 32[0m
+
+[0;32m==> 2) Setup Member User[0m
+[POST] /api/auth/register/ -> 201
+[POST] /api/auth/login/ -> 200
+[1;33mINFO: Member ID: 33[0m
+
+[0;32m==> 3) Login as Owner[0m
+[POST] /api/auth/login/ -> 200
+
+[0;32m==> 4) Create Org -> Workspace -> Project[0m
+[POST] /api/orgs/organizations/ -> 201
+[POST] /api/orgs/workspaces/ -> 201
+[POST] /api/projects/ -> 201
+[1;33mINFO: Project ID: 39a1dfb1-9bed-4d8d-8554-fe3f021b18c8[0m
+
+[0;32m==> 4) Testing Role Creation: POST /api/projects/39a1dfb1-9bed-4d8d-8554-fe3f021b18c8/roles/[0m
+[POST] /api/projects/39a1dfb1-9bed-4d8d-8554-fe3f021b18c8/roles/ -> 201
+Success: Role created.
+[1;33mINFO: Role ID: 11563733-da1d-4a9d-85a2-27a1aeb649ff[0m
+
+[0;32m==> 5) Testing Role Listing: GET /api/projects/39a1dfb1-9bed-4d8d-8554-fe3f021b18c8/roles/[0m
+[GET] /api/projects/39a1dfb1-9bed-4d8d-8554-fe3f021b18c8/roles/ -> 200
+Success: Roles listed.
+Validated: Created role exists in the list.
+
+[0;32m==> 6) Testing Role Update: PATCH /api/projects/39a1dfb1-9bed-4d8d-8554-fe3f021b18c8/roles/11563733-da1d-4a9d-85a2-27a1aeb649ff/[0m
+[PATCH] /api/projects/39a1dfb1-9bed-4d8d-8554-fe3f021b18c8/roles/11563733-da1d-4a9d-85a2-27a1aeb649ff/ -> 200
+Success: Role updated.
+Validated: role_name is now admin.
+
+[0;32m==> 7) Testing Role Deletion: DELETE /api/projects/39a1dfb1-9bed-4d8d-8554-fe3f021b18c8/roles/11563733-da1d-4a9d-85a2-27a1aeb649ff/[0m
+[DELETE] /api/projects/39a1dfb1-9bed-4d8d-8554-fe3f021b18c8/roles/11563733-da1d-4a9d-85a2-27a1aeb649ff/ -> 204
+Success: Role deleted.
+
+[0;32m==> 8) Verifying Deletion[0m
+[GET] /api/projects/39a1dfb1-9bed-4d8d-8554-fe3f021b18c8/roles/ -> 200
+Success: Role confirmed gone.
+
+[0;32mNew Role API test completed successfully![0m

@@ -13,7 +13,7 @@ from .serializer import RoleSerializer
 
 
 def can_access_project(user, project):
-	return project.owner_id == user.id or project.roles.filter(user=user).exists()
+	return project.members.filter(user=user).exists() or project.roles.filter(user=user).exists()
 
 
 class RoleListCreateView(APIView):
@@ -29,7 +29,7 @@ class RoleListCreateView(APIView):
 
 	def post(self, request, project_id):
 		project = get_object_or_404(Project, id=project_id)
-		if project.owner_id != request.user.id:
+		if not project.members.filter(user=request.user, role='admin').exists():
 			return Response({'error': 'Only the owner can assign roles.'}, status=status.HTTP_403_FORBIDDEN)
 		serializer = RoleSerializer(data=request.data)
 		serializer.is_valid(raise_exception=True)
@@ -46,7 +46,7 @@ class RoleDetailView(APIView):
 
 	def patch(self, request, project_id, role_id):
 		role = self.get_role(project_id, role_id)
-		if role.project.owner_id != request.user.id:
+		if not role.project.members.filter(user=request.user, role='admin').exists():
 			return Response({'error': 'Only the owner can update roles.'}, status=status.HTTP_403_FORBIDDEN)
 		serializer = RoleSerializer(role, data=request.data, partial=True)
 		serializer.is_valid(raise_exception=True)
@@ -55,7 +55,7 @@ class RoleDetailView(APIView):
 
 	def delete(self, request, project_id, role_id):
 		role = self.get_role(project_id, role_id)
-		if role.project.owner_id != request.user.id:
+		if not role.project.members.filter(user=request.user, role='admin').exists():
 			return Response({'error': 'Only the owner can revoke roles.'}, status=status.HTTP_403_FORBIDDEN)
 		role.delete()
 		return Response(status=status.HTTP_204_NO_CONTENT)

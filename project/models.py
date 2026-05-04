@@ -32,6 +32,7 @@ class Project(models.Model):
         blank=True,
     )
     name = models.CharField(max_length=255)
+    key = models.CharField(max_length=10, blank=True)
     description = models.TextField(blank=True)
     type = models.CharField(
         max_length=50,
@@ -340,3 +341,21 @@ class CumulativeFlowDiagram(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="cfds")
     data_json = models.JSONField(default=dict)
+
+class ProjectDocument(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="documents")
+    title = models.CharField(max_length=255)
+    content = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+class ProjectFile(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="files")
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="project_files")
+    file_name = models.CharField(max_length=255)
+    file_url = models.CharField(max_length=500, blank=True, null=True)
+    mime_type = models.CharField(max_length=100)
+    file_size = models.IntegerField()
+    uploaded_at = models.DateTimeField(auto_now_add=True)

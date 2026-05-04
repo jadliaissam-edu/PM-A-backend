@@ -15,6 +15,7 @@ from .views import (
     ProjectArchiveView,
     ProjectCloseView,
     ProjectDetailView,
+    ProjectFromTemplateView,
     ProjectListCreateView,
     ProjectMembersView,
     ProjectRoleDetailView,
@@ -29,12 +30,18 @@ from .views import (
     SprintReportView,
     SprintStartView,
     UserDetailView,
+    UserListView,
+    ProjectDocumentListView,
+    ProjectDocumentDetailView,
+    ProjectFileListView,
+    ProjectFileDetailView,
     health_check,
 )
 
 
 urlpatterns = [
     path("health/", health_check, name="health_check"),
+    path("users/", UserListView.as_view(), name="user-list"),
     path("users/me/", CurrentUserProfileView.as_view(), name="current-user-profile"),
     path("users/<int:user_id>/", UserDetailView.as_view(), name="user-detail"),
     path("dashboard/", DashboardView.as_view(), name="dashboard"),
@@ -46,6 +53,7 @@ urlpatterns = [
         name="dashboard-recent-projects",
     ),
     path("projects/", ProjectListCreateView.as_view(), name="project-list-create"),
+    path("projects/from-template/", ProjectFromTemplateView.as_view(), name="project-from-template"),
     path("projects/<uuid:project_id>/", ProjectDetailView.as_view(), name="project-detail"),
     path(
         "projects/<uuid:project_id>/archive/",
@@ -147,5 +155,25 @@ urlpatterns = [
         "orgs/releases/",
         OrganizationReleaseListView.as_view(),
         name="organization-releases",
+    ),
+    path(
+        "projects/<uuid:project_id>/documents/",
+        ProjectDocumentListView.as_view(),
+        name="project-document-list",
+    ),
+    path(
+        "projects/<uuid:project_id>/documents/<uuid:document_id>/",
+        ProjectDocumentDetailView.as_view(),
+        name="project-document-detail",
+    ),
+    path(
+        "projects/<uuid:project_id>/files/",
+        ProjectFileListView.as_view(),
+        name="project-file-list",
+    ),
+    path(
+        "projects/<uuid:project_id>/files/<uuid:file_id>/",
+        ProjectFileDetailView.as_view(),
+        name="project-file-detail",
     ),
 ]

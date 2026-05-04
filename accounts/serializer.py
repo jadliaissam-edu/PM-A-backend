@@ -93,6 +93,12 @@ class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
         return {
             "refresh": str(data),
             "access": str(data.access_token),
+            "user_id": user_obj.id,
             "username": user_obj.username,
             "email": user_obj.email,
         }
+
+class OAuthLoginSerializer(serializers.Serializer):
+    code = serializers.CharField()
+    provider = serializers.ChoiceField(choices=['github', 'google'])
+

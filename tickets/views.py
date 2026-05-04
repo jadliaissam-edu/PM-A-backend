@@ -11,6 +11,7 @@ from accounts.authentication import JWTAuthentication
 from project.models import BoardColumn, Project, Release, Sprint
 
 from .models import Attachment, BacklogItem, Ticket, TicketAssignment, TicketLink, TicketMovement, TimeEntry
+from project.permissions import IsProjectMember, IsProjectAdmin
 from .serializer import (
     AttachmentSerializer,
     BacklogItemSerializer,
@@ -19,6 +20,7 @@ from .serializer import (
     TicketSerializer,
     TimeEntrySerializer,
 )
+from activity.utils import log_activity
 
 
 class GlobalTicketListView(APIView):
@@ -32,7 +34,7 @@ class GlobalTicketListView(APIView):
         search = request.query_params.get("search")
 
         tickets = (
-            Ticket.objects.all()
+            Ticket.objects.filter(project__members__user=request.user)
             .select_related("project__workspace__organization", "current_column", "sprint", "release")
             .prefetch_related("assignments__user")
             .order_by("-created_at")
@@ -67,7 +69,7 @@ def get_project_ticket(project_id, ticket_id):
 
 class AuthenticatedAPIView(APIView):
     authentication_classes = [JWTAuthentication, SessionAuthentication]
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsProjectMember] # Apply by default to project views
 
 class ProjectTicketListCreateView(AuthenticatedAPIView):
     def get(self, request, project_id):
@@ -122,24 +124,60 @@ class TicketDetailView(AuthenticatedAPIView):
 class TicketStatusView(AuthenticatedAPIView):
     def post(self, request, project_id, ticket_id):
         ticket = get_project_ticket(project_id, ticket_id)
+        old_status = ticket.status
         new_status = request.data.get("status")
         if not new_status:
             return Response({"error": "status is required"}, status=status.HTTP_400_BAD_REQUEST)
         ticket.status = new_status
         ticket.save(update_fields=["status"])
+        
+        log_activity(
+            actor=request.user,
+            target=ticket,
+            action="status_change",
+            description=f"Changed status of ticket '{ticket.title}' from {old_status} to {new_status}",
+            project_id=project_id,
+            old_value={"status": old_status},
+            new_value={"status": new_status}
+        )
         return Response({"message": "Status updated", "ticket": TicketSerializer(ticket).data})
 
 
 class TicketLabelsView(AuthenticatedAPIView):
+    def get(self, request, project_id, ticket_id):
+        ticket = get_project_ticket(project_id, ticket_id)
+        return Response({"labels": ticket.labels})
+
     def post(self, request, project_id, ticket_id):
         ticket = get_project_ticket(project_id, ticket_id)
-        labels = request.data.get("labels")
-        if labels is None:
+        action = request.data.get("action", "add")
+        labels_input = request.data.get("labels")
+        
+        if labels_input is None:
             single_label = request.data.get("label")
-            labels = [single_label] if single_label else []
-        ticket.labels = labels
+            labels_input = [single_label] if single_label else []
+            
+        if not isinstance(labels_input, list):
+            labels_input = [labels_input]
+            
+        current_labels = list(ticket.labels) if isinstance(ticket.labels, list) else []
+        
+        if action == "set":
+            current_labels = labels_input
+        elif action == "remove":
+            current_labels = [l for l in current_labels if l not in labels_input]
+        else: # add
+            for label in labels_input:
+                if label and label not in current_labels:
+                    current_labels.append(label)
+        
+        ticket.labels = current_labels
         ticket.save(update_fields=["labels"])
-        return Response({"message": "Labels updated", "ticket": TicketSerializer(ticket).data})
+        return Response({
+            "message": f"Labels updated ({action})", 
+            "labels": ticket.labels,
+            "ticket": TicketSerializer(ticket).data
+        })
 
 
 class TicketAssigneeListCreateView(AuthenticatedAPIView):
@@ -235,6 +273,17 @@ class TicketMoveView(AuthenticatedAPIView):
             to_column=to_column,
             moved_by=request.user,
         )
+        
+        log_activity(
+            actor=request.user,
+            target=ticket,
+            action="ticket_move",
+            description=f"Moved ticket '{ticket.title}' from '{from_column.name if from_column else 'N/A'}' to '{to_column.name}'",
+            project_id=project_id,
+            old_value={"column": from_column.name if from_column else None},
+            new_value={"column": to_column.name}
+        )
+        
         return Response(
             {
                 "message": "Ticket moved",
@@ -405,3 +454,37 @@ class ReleaseIssuesSummaryView(AuthenticatedAPIView):
             .order_by("status")
         )
         return Response(list(summary))
+
+
+class TicketImportView(AuthenticatedAPIView):
+    def post(self, request, project_id):
+        project = get_object_or_404(Project, id=project_id)
+        import_format = request.data.get('format', 'csv')
+        source_file = request.FILES.get('file')
+        
+        if not source_file:
+            return Response({"error": "No file provided"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Save file temporarily
+        from django.core.files.storage import default_storage
+        file_path = f"imports/{project_id}_{source_file.name}"
+        path = default_storage.save(file_path, source_file)
+        
+        from .models import TicketImportJob, ImportFormat
+        job = TicketImportJob.objects.create(
+            project=project,
+            format=import_format,
+            source_file_url=path,
+            status='pending'
+        )
+        
+        # Process synchronously for now
+        from .importers import process_ticket_import_job
+        process_ticket_import_job(job.id)
+        
+        job.refresh_from_db()
+        return Response({
+            "job_id": job.id,
+            "status": job.status,
+            "message": "Import processed" if job.status == 'success' else "Import failed"
+        })

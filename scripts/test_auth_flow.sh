@@ -18,6 +18,12 @@ user_exists() {
 }
 create_user() {
   call_api "/api/auth/register/" "{\"username\":\"${USERNAME}\",\"email\":\"${EMAIL}\",\"password\":\"${INITIAL_PASSWORD}\"}"
+  # It's okay if the user already exists; continue the flow.
+  if [[ "${HTTP_STATUS}" == "201" || "${HTTP_STATUS}" == "200" ]]; then
+    echo "User created (status ${HTTP_STATUS})."
+  else
+    echo "Create user returned status ${HTTP_STATUS}; continuing (user may already exist)."
+  fi
 } 
 
 call_api() {
@@ -39,15 +45,15 @@ call_api() {
 json_get() {
   local key="$1"
   local body="$2"
-  python3 - <<PY
-import json
+  # Use stdin to safely pass JSON body to Python (avoids quoting issues).
+  printf '%s' "$body" | python3 -c "import sys, json
+data = sys.stdin.read()
 try:
-    obj = json.loads('''${body}''')
-    value = obj.get('${key}', '')
-    print(value if value is not None else '')
+    obj = json.loads(data)
+    v = obj.get('$key', '')
+    print('' if v is None else v)
 except Exception:
-    print('')
-PY
+    print('')"
 }
 
 print_step "1) Register user (safe to run multiple times)"

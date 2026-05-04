@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / '.env')
 
-# ⚠️ En production, mets cette clé dans une variable d'environnement
+# En production, mets cette clé dans une variable d'environnement
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'dev-secret-key')
 
 def env_bool(key, default=False):
@@ -30,8 +30,8 @@ def env_list(key, default=''):
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-kef#w@q8)+#_l^yem%y_5xbr-kewqbb2ky_@a41ks#ndq7^08#'
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = env_bool('DEBUG', True)
+
+DEBUG = env_bool('DEBUG', False)
 
 ALLOWED_HOSTS = [host.strip() for host in os.getenv('ALLOWED_HOSTS', '127.0.0.1,localhost').split(',') if host.strip()]
 
@@ -61,6 +61,8 @@ INSTALLED_APPS = [
     'drf_spectacular', 
     'orgs',
     'core',
+    'activity',
+    'search',
 ]
 
 REST_FRAMEWORK = { 

@@ -4,12 +4,14 @@ from .views import  EmailTokenObtainPairView, PasswordResetRequestView
 from .views import  PasswordResetConfirmView 
 from .views import PasswordResetVerifyOTPView
 from .views import MFASetupView, MFAVerifyView
-from .views import  RegisterView, LogoutView, CookieTokenRefreshView
+from .views import  RegisterView, LogoutView, CookieTokenRefreshView, OAuthLoginView
 urlpatterns = [ 
     path('login/', EmailTokenObtainPairView.as_view(), name='token_obtain_pair'), 
     path('token/refresh/', CookieTokenRefreshView.as_view(), name='token_refresh'), 
     path('register/', RegisterView.as_view(), name='register'),
+    path('oauth/login/', OAuthLoginView.as_view(), name='oauth-login'),
     path('mfa/setup/', MFASetupView.as_view(), name='mfa-setup'),
+
     path('mfa/enable/', MFASetupView.as_view(), name='mfa-enable'),
     path('mfa/verify/', MFAVerifyView.as_view(), name='mfa-verify'),
     path('reset-password/', PasswordResetRequestView.as_view(), name='reset-password-request'),

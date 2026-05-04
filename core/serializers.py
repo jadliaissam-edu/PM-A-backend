@@ -1,7 +1,7 @@
 from rest_framework import serializers
-from .models import Space
+from .models import NotificationEvent
 
-class SpaceSerializer(serializers.ModelSerializer):
+class NotificationEventSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Space
-        fields = "__all__"
+        model = NotificationEvent
+        fields = ['id', 'project_id', 'event_type', 'payload_json', 'is_read', 'created_at']

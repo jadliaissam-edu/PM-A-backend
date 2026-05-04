@@ -2,6 +2,7 @@
 
 # Standard library imports
 import random
+import requests
 from datetime import timedelta
 
 # Django imports
@@ -23,7 +24,7 @@ from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 
 # Local imports
-from .models import MFAConfig, PasswordResetOTP
+from accounts.models import MFAConfig, PasswordResetOTP, OAuthAccount, OAuthProvider
 from .services.mfa_service import generate_mfa_secret, generate_qr_url, verify_mfa_token
 from .serializer import (
     EmailTokenObtainPairSerializer,
@@ -33,6 +34,7 @@ from .serializer import (
     PasswordResetRequestSerializer,
     PasswordResetVerifyOTPSerializer,
     RegisterSerializer,
+    OAuthLoginSerializer,
 )
 
 
@@ -348,3 +350,125 @@ class MFAVerifyView(APIView):
             mfa_config.save(update_fields=['is_enabled'])
 
         return Response({'message': 'MFA verified and enabled.'}, status=status.HTTP_200_OK)
+
+# --- OAuth Views ---
+
+class OAuthLoginView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        serializer = OAuthLoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        code = serializer.validated_data['code']
+        provider = serializer.validated_data['provider']
+
+        if provider == 'github':
+            user_data = self._handle_github(code)
+        elif provider == 'google':
+            user_data = self._handle_google(code)
+        else:
+            return Response({'error': 'Unsupported provider.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not user_data:
+            return Response({'error': f'Failed to authenticate with {provider}.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        email = user_data.get('email')
+        uid = user_data.get('id')
+        name = user_data.get('name', '')
+
+        if not email:
+            return Response({'error': 'Email not provided by OAuth provider.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user, created = User.objects.get_or_create(
+            email=email,
+            defaults={
+                'username': email.split('@')[0] + "_" + str(random.randint(1000, 9999)),
+                'first_name': name.split(' ')[0] if name else '',
+                'last_name': ' '.join(name.split(' ')[1:]) if name and len(name.split(' ')) > 1 else '',
+            }
+        )
+
+        OAuthAccount.objects.get_or_create(
+            user=user,
+            provider=provider,
+            defaults={'provider_user_id': str(uid)}
+        )
+
+        # Generate JWT tokens
+        refresh = RefreshToken.for_user(user)
+        response = Response({
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+            'user': {
+                'id': user.id,
+                'email': user.email,
+                'username': user.username
+            }
+        }, status=status.HTTP_200_OK)
+
+        # Set cookies
+        set_access_cookie(response, str(refresh.access_token))
+        set_refresh_cookie(response, str(refresh))
+
+        return response
+
+    def _handle_github(self, code):
+        client_id = getattr(settings, 'GITHUB_CLIENT_ID', None)
+        client_secret = getattr(settings, 'GITHUB_CLIENT_SECRET', None)
+        
+        if not client_id or not client_secret:
+            # Fallback for dev if not configured
+            return None
+
+        # 1. Exchange code for token
+        token_res = requests.post(
+            'https://github.com/login/oauth/access_token',
+            data={
+                'client_id': client_id,
+                'client_secret': client_secret,
+                'code': code,
+            },
+            headers={'Accept': 'application/json'}
+        )
+        token_data = token_res.json()
+        access_token = token_data.get('access_token')
+        if not access_token:
+            return None
+
+        # 2. Get user profile
+        user_res = requests.get(
+            'https://api.github.com/user',
+            headers={'Authorization': f'token {access_token}'}
+        )
+        return user_res.json()
+
+    def _handle_google(self, code):
+        client_id = getattr(settings, 'GOOGLE_CLIENT_ID', None)
+        client_secret = getattr(settings, 'GOOGLE_CLIENT_SECRET', None)
+        redirect_uri = getattr(settings, 'GOOGLE_REDIRECT_URI', None)
+
+        if not client_id or not client_secret:
+            return None
+
+        # 1. Exchange code for token
+        token_res = requests.post(
+            'https://oauth2.googleapis.com/token',
+            data={
+                'client_id': client_id,
+                'client_secret': client_secret,
+                'code': code,
+                'grant_type': 'authorization_code',
+                'redirect_uri': redirect_uri,
+            }
+        )
+        token_data = token_res.json()
+        access_token = token_data.get('access_token')
+        if not access_token:
+            return None
+
+        # 2. Get user info
+        user_res = requests.get(
+            'https://www.googleapis.com/oauth2/v2/userinfo',
+            headers={'Authorization': f'Bearer {access_token}'}
+        )
+        return user_res.json()

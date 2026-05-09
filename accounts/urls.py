@@ -1,21 +1,37 @@
-from django.urls import path 
+from django.urls import path
+from .views import (
+    RegisterView,
+    EmailTokenObtainPairView,
+    CookieTokenRefreshView,
+    LogoutView,
+    PasswordResetRequestView,
+    PasswordResetVerifyOTPView,
+    PasswordResetConfirmView,
+    MFASetupView,
+    MFAVerifyView,
+    OAuthLoginView,
+)
 
-from .views import  EmailTokenObtainPairView, PasswordResetRequestView
-from .views import  PasswordResetConfirmView 
-from .views import PasswordResetVerifyOTPView
-from .views import MFASetupView, MFAVerifyView
-from .views import  RegisterView, LogoutView, CookieTokenRefreshView, OAuthLoginView
-urlpatterns = [ 
-    path('login/', EmailTokenObtainPairView.as_view(), name='token_obtain_pair'), 
-    path('token/refresh/', CookieTokenRefreshView.as_view(), name='token_refresh'), 
-    path('register/', RegisterView.as_view(), name='register'),
-    path('oauth/login/', OAuthLoginView.as_view(), name='oauth-login'),
-    path('mfa/setup/', MFASetupView.as_view(), name='mfa-setup'),
-
-    path('mfa/enable/', MFASetupView.as_view(), name='mfa-enable'),
-    path('mfa/verify/', MFAVerifyView.as_view(), name='mfa-verify'),
-    path('reset-password/', PasswordResetRequestView.as_view(), name='reset-password-request'),
-    path('reset-password/verify-otp/', PasswordResetVerifyOTPView.as_view(), name='reset-password-verify-otp'),
-    path('reset-password/confirm/', PasswordResetConfirmView.as_view(), name='reset-password-confirm'),
-    path('logout/', LogoutView.as_view(), name='logout'),
+urlpatterns = [
+    # Authentication endpoints
+    path('auth/register/', RegisterView.as_view(), name='register'),
+    path('auth/login/', EmailTokenObtainPairView.as_view(), name='login'),
+    path('auth/token/refresh/', CookieTokenRefreshView.as_view(), name='token_refresh'),
+    path('auth/logout/', LogoutView.as_view(), name='logout'),
+    
+    # Password Reset Flow
+    path('auth/reset-password/', PasswordResetRequestView.as_view(), name='password_reset_request'),
+    path('auth/reset-password/verify-otp/', PasswordResetVerifyOTPView.as_view(), name='password_reset_verify_otp'),
+    path('auth/reset-password/confirm/', PasswordResetConfirmView.as_view(), name='password_reset_confirm'),
+    
+    # MFA endpoints
+    path('auth/mfa/setup/', MFASetupView.as_view(), name='mfa_setup'),
+    path('auth/mfa/verify/', MFAVerifyView.as_view(), name='mfa_verify'),
+    
+    # OAuth endpoints
+    path('auth/oauth/login/', OAuthLoginView.as_view(), name='oauth_login'),
+    
+    # Legacy endpoints for backward compatibility
+    path('login/', EmailTokenObtainPairView.as_view(), name='legacy_login'),
+    path('token/refresh/', CookieTokenRefreshView.as_view(), name='legacy_token_refresh'),
 ]

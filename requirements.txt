@@ -2,11 +2,22 @@ asgiref==3.11.1
 Django==6.0.4
 sqlparse==0.5.5
 python-dotenv
-djangorestframework-simplejwt 
+djangorestframework-simplejwt
 django-cors-headers
 django-debug-toolbar
 django-oauth-toolkit
-pyotp 
-qrcode 
+pyotp
+qrcode
 pillow
 drf-spectacular
+# Production server
+gunicorn>=21.2.0
+# PostgreSQL adapter
+psycopg2-binary>=2.9.9
+# Celery async workers
+celery[redis]>=5.3.6
+redis>=5.0.0
+# Password hashing (Argon2id per spec)
+argon2-cffi>=23.1.0
+# Rate limiting per spec
+django-ratelimit>=4.1.0

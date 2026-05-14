@@ -35,6 +35,7 @@ from .serializer import (
     PasswordResetVerifyOTPSerializer,
     RegisterSerializer,
     OAuthLoginSerializer,
+    UserProfileSerializer,
 )
 
 
@@ -153,6 +154,24 @@ class LogoutView(APIView):
         clear_access_cookie(response)
         clear_refresh_cookie(response)
         return response
+
+# --- User Profile Views (Frontend expects these) ---
+
+class UserProfileView(APIView):
+    """Handle GET /api/users/me/ and PATCH /api/users/me/"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        """Get current user profile"""
+        serializer = UserProfileSerializer(request.user)
+        return Response(serializer.data)
+
+    def patch(self, request):
+        """Update current user profile"""
+        serializer = UserProfileSerializer(request.user, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({"message": "Profile updated successfully", **serializer.data})
 
 # --- Password Reset Views ---
 

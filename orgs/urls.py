@@ -1,17 +1,19 @@
-from django.urls import include, path
-from rest_framework.routers import DefaultRouter
-
-from .views import AcceptInvitationView, InvitationViewSet, OrganizationTreeView, OrganizationViewSet, WorkspaceViewSet
-
-
-router = DefaultRouter()
-router.register(r"organizations", OrganizationViewSet, basename="organization")
-router.register(r"workspaces", WorkspaceViewSet, basename="workspace")
-router.register(r"invitations", InvitationViewSet, basename="invitation")
-
+from django.urls import path
+from .views import (
+    OrganizationListView,
+    OrganizationDetailView,
+    WorkspaceListCreateView,
+    WorkspaceDetailView,
+    OrganizationTreeView,
+)
 
 urlpatterns = [
-    path("tree/", OrganizationTreeView.as_view(), name="organization-tree"),
-    path("invitations/<uuid:invitation_id>/accept/", AcceptInvitationView.as_view(), name="accept-invitation"),
-    path("", include(router.urls)),
+    # Organization endpoints
+    path('orgs/', OrganizationListView.as_view(), name='organization_list'),
+    path('orgs/<uuid:org_id>/', OrganizationDetailView.as_view(), name='organization_detail'),
+    path('orgs/tree/', OrganizationTreeView.as_view(), name='orgs_tree'),
+    
+    # Workspace endpoints
+    path('workspaces/', WorkspaceListCreateView.as_view(), name='workspace_list_create'),
+    path('workspaces/<uuid:workspace_id>/', WorkspaceDetailView.as_view(), name='workspace_detail'),
 ]

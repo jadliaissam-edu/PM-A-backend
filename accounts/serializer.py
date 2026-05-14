@@ -46,42 +46,49 @@ class RegisterSerializer(serializers.ModelSerializer):
 from django.contrib.auth import authenticate
 
 class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
-    username_field = 'email'
+    """Support both email and username for authentication"""
+    username_field = 'username'  # Keep as username for form submission
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Allow both username and email as the identifier
+        self.fields['username'].field_name = 'identifier'
 
     def validate(self, attrs):
-        identifier = attrs.get("email")
+        identifier = attrs.get("username") or attrs.get("email")
         password = attrs.get("password")
 
         if not identifier or not password:
             raise serializers.ValidationError(
-                "Email and password are required"
+                "Email/Username and password are required"
             )
 
+        # Try to find by email first
         matched_users = list(
             user.objects.filter(email=identifier).order_by("id")
         )
+        
+        # If not found by email, try by username
+        if not matched_users:
+            matched_users = list(
+                user.objects.filter(username=identifier).order_by("id")
+            )
 
-        valid_email_users = [
+        valid_users = [
             candidate
             for candidate in matched_users
             if candidate.check_password(password) and getattr(candidate, "is_active", True)
         ]
 
-        if len(valid_email_users) > 1:
+        if len(valid_users) > 1:
             raise serializers.ValidationError(
-                "Multiple accounts use this email. Please log in with your username."
+                "Multiple accounts found. Please use a unique identifier."
             )
 
-        if len(valid_email_users) == 1:
-            user_obj = valid_email_users[0]
-        elif matched_users:
-            user_obj = None
+        if len(valid_users) == 1:
+            user_obj = valid_users[0]
         else:
-            user_obj = authenticate(
-                request=self.context.get("request"),
-                username=identifier,
-                password=password
-            )
+            user_obj = None
 
         if not user_obj:
             raise serializers.ValidationError(
@@ -102,3 +109,10 @@ class OAuthLoginSerializer(serializers.Serializer):
     code = serializers.CharField()
     provider = serializers.ChoiceField(choices=['github', 'google'])
 
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    """Serializer for user profile endpoints"""
+    class Meta:
+        model = user
+        fields = ['id', 'username', 'email', 'first_name', 'last_name']
+        read_only_fields = ['id']

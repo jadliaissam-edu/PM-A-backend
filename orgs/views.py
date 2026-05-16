@@ -11,6 +11,7 @@ from accounts.authentication import JWTAuthentication
 from project.models import Project
 
 from .models import Invitation, Organization, Workspace
+from .models import WorkspaceMember
 from .serializers import (
     InvitationSerializer,
     OrganizationSerializer,
@@ -46,8 +47,12 @@ class WorkspaceViewSet(AuthenticatedModelViewSet):
     serializer_class = WorkspaceSerializer
 
     def get_queryset(self):
+        # include workspaces where the user is a project member, a workspace member,
+        # or the owner of the organization so creators see newly created workspaces
         qs = Workspace.objects.filter(
-            projects__members__user=self.request.user
+            models.Q(projects__members__user=self.request.user) |
+            models.Q(members__user=self.request.user) |
+            models.Q(organization__owner=self.request.user)
         ).select_related("organization").annotate(
             project_count=Count("projects", distinct=True)
         ).distinct().order_by("name")
@@ -56,10 +61,17 @@ class WorkspaceViewSet(AuthenticatedModelViewSet):
             qs = qs.filter(organization_id=org_id)
         return qs
 
+    def perform_create(self, serializer):
+        # create the workspace
+        workspace = serializer.save()
+        # ensure the creator is a workspace member so they see it in listings
+        try:
+            WorkspaceMember.objects.get_or_create(workspace=workspace, user=self.request.user, defaults={"role": "Owner"})
+        except Exception:
+            pass
 
-from django.core.mail import send_mail
-from django.template.loader import render_to_string
-from django.conf import settings
+
+from activity.emails import send_workspace_invitation_email
 
 
 class InvitationViewSet(AuthenticatedModelViewSet):
@@ -69,38 +81,52 @@ class InvitationViewSet(AuthenticatedModelViewSet):
     def perform_create(self, serializer):
         invitation = serializer.save()
         
-        # Send email
-        context = {
-            'workspace_name': invitation.workspace.name,
-            'invite_link': invitation.invite_link,
-        }
-        
-        html_message = render_to_string('orgs/emails/invitation.html', context)
-        plain_message = f"Rejoignez {invitation.workspace.name} sur AgileFlow : {invitation.invite_link}"
-        
-        try:
-            send_mail(
-                subject=f"Invitation à rejoindre {invitation.workspace.name} sur AgileFlow",
-                message=plain_message,
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[invitation.email],
-                html_message=html_message,
-                fail_silently=False,
-            )
-        except Exception as e:
-            print(f"Failed to send invitation email: {e}")
+        # Check if user already exists and is a member
+        from django.contrib.auth.models import User
+        user = User.objects.filter(email=invitation.email).first()
+        if user and WorkspaceMember.objects.filter(workspace=invitation.workspace, user=user).exists():
+            invitation.is_accepted = True
+            invitation.save(update_fields=['is_accepted'])
+            return
+            
+        # Send email in the background (simulated by helper)
+        send_workspace_invitation_email(
+            recipient_email=invitation.email,
+            workspace_name=invitation.workspace.name,
+            invite_link=invitation.invite_link
+        )
 
 class AcceptInvitationView(APIView):
     authentication_classes = [JWTAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticated]
 
-    def post(self, request, invitation_id):
-        invitation = get_object_or_404(Invitation, id=invitation_id)
+    def post(self, request, invitation_id=None):
+        if invitation_id:
+            invitation = get_object_or_404(Invitation, id=invitation_id)
+        else:
+            workspace_id = request.data.get('workspace')
+            if not workspace_id:
+                return Response({"detail": "Workspace ID is required."}, status=status.HTTP_400_BAD_REQUEST)
+            
+            invitation = Invitation.objects.filter(
+                workspace_id=workspace_id, 
+                email__iexact=request.user.email, 
+                is_accepted=False
+            ).first()
+            
+            if not invitation:
+                # If no invitation found for CURRENT user email, check if there's one for the email in request data
+                # to provide a better error message.
+                req_email = request.data.get('email')
+                if req_email and req_email.lower() != request.user.email.lower():
+                     return Response({"detail": f"This invitation was sent to {req_email}, but you are logged in as {request.user.email}."}, status=status.HTTP_403_FORBIDDEN)
+                
+                return Response({"detail": "No pending invitation found for this workspace."}, status=status.HTTP_404_NOT_FOUND)
+
         if invitation.is_accepted:
              return Response({"detail": "Invitation already accepted."}, status=status.HTTP_400_BAD_REQUEST)
         
         # Link user to workspace
-        from .models import WorkspaceMember
         WorkspaceMember.objects.get_or_create(
             workspace=invitation.workspace,
             user=request.user,
@@ -136,3 +162,28 @@ class OrganizationTreeView(APIView):
             )
         ).distinct().order_by("name")
         return Response(OrganizationTreeSerializer(organizations, many=True).data)
+        
+
+class OrganizationMemberView(APIView):
+    authentication_classes = [JWTAuthentication, SessionAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, org_id):
+        org = get_object_or_404(Organization, id=org_id)
+        # Unique users from workspaces and the owner
+        from django.contrib.auth.models import User
+        workspace_users = User.objects.filter(workspace_memberships__workspace__organization=org)
+        owner = User.objects.filter(id=org.owner_id) if org.owner_id else User.objects.none()
+        
+        users = (workspace_users | owner).distinct().order_by('username')
+        
+        payload = [
+            {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "avatar_url": getattr(user, 'avatar_url', None), # Assume it might exist or handle gracefully
+            }
+            for user in users
+        ]
+        return Response(payload)

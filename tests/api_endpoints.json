@@ -1,0 +1,18 @@
+[
+  {
+    "name": "projects",
+    "list_url": "/api/projects/",
+    "detail_url": "/api/projects/{id}/",
+    "create_payload": {"name": "All-API Test Project", "summary": "created by all-api test", "visibility": "private"},
+    "requires_auth": true,
+    "skip_delete": false
+  },
+  {
+    "name": "tickets",
+    "list_url": "/api/tickets/",
+    "detail_url": "/api/tickets/{id}/",
+    "create_payload": {"title": "All-API Test Ticket", "content": "created by all-api test"},
+    "requires_auth": true,
+    "skip_delete": true
+  }
+]

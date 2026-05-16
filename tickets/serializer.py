@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
 from .models import Attachment, BacklogItem, Ticket, TicketAssignment, TicketLink, TimeEntry
+from .models import TicketAuditLog
 
 
 User = get_user_model()
@@ -122,3 +123,12 @@ class BacklogItemSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = ["id", "project", "ticket", "created_at"]
+
+
+class TicketAuditLogSerializer(serializers.ModelSerializer):
+    actor_username = serializers.CharField(source="actor_user.username", read_only=True)
+
+    class Meta:
+        model = TicketAuditLog
+        fields = ["id", "ticket", "actor_user", "actor_username", "field_name", "old_value", "new_value", "changed_at"]
+        read_only_fields = ["id", "actor_user", "actor_username", "changed_at"]

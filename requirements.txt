@@ -10,3 +10,9 @@ pyotp
 qrcode 
 pillow
 drf-spectacular
+gunicorn
+django-allauth
+django-storages[boto3]
+boto3
+reportlab==3.6.12
+channels

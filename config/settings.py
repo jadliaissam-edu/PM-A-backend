@@ -33,12 +33,13 @@ SECRET_KEY = 'django-insecure-kef#w@q8)+#_l^yem%y_5xbr-kewqbb2ky_@a41ks#ndq7^08#
 
 DEBUG = env_bool('DEBUG', False)
 
-ALLOWED_HOSTS = [host.strip() for host in os.getenv('ALLOWED_HOSTS', '127.0.0.1,localhost').split(',') if host.strip()]
+ALLOWED_HOSTS = ["*"]
 
 # Current backend uses Django's default user model.
 AUTH_USER_MODEL = 'auth.User'
 
 INSTALLED_APPS = [
+    'channels',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -63,6 +64,10 @@ INSTALLED_APPS = [
     'core',
     'activity',
     'search',
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',
+    'allauth.socialaccount.providers.github',
 ]
 
 REST_FRAMEWORK = { 
@@ -83,6 +88,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'allauth.account.middleware.AccountMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     # debug toolbar middleware 
@@ -105,7 +111,7 @@ ROOT_URLCONF = 'config.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / "templates"],  # tu peux ajouter un dossier templates
+        'DIRS': [BASE_DIR / "templates"],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -118,6 +124,13 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'config.wsgi.application'
+ASGI_APPLICATION = 'config.asgi.application'
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer'
+    }
+}
 
 # Base de données (SQLite par défaut)
 DATABASES = {
@@ -154,11 +167,19 @@ JWT_REFRESH_COOKIE = os.getenv('JWT_REFRESH_COOKIE', 'refresh_token')
 JWT_ACCESS_COOKIE = os.getenv('JWT_ACCESS_COOKIE', 'access_token')
 JWT_REFRESH_COOKIE_PATH = os.getenv('JWT_REFRESH_COOKIE_PATH', '/')
 JWT_ACCESS_COOKIE_PATH = os.getenv('JWT_ACCESS_COOKIE_PATH', '/')
+
+# Cookie defaults:
+# - In development (DEBUG=True) we use SameSite=Lax and Secure=False so cookies
+#   work over plain HTTP during local testing.
+# - In production (DEBUG=False) default to SameSite=None and Secure=True so
+#   cross-site cookies are allowed and only sent over HTTPS.
+default_samesite = 'Lax' if DEBUG else 'None'
+JWT_COOKIE_SAMESITE = os.getenv('JWT_COOKIE_SAMESITE', default_samesite).capitalize()
 JWT_COOKIE_SECURE = env_bool('JWT_COOKIE_SECURE', not DEBUG)
 JWT_COOKIE_HTTP_ONLY = env_bool('JWT_COOKIE_HTTP_ONLY', True)
-JWT_COOKIE_SAMESITE = os.getenv('JWT_COOKIE_SAMESITE', 'Lax').capitalize()
 
-if JWT_COOKIE_SAMESITE == 'None':
+# Ensure Secure is enforced in production when SameSite=None unless explicitly overridden.
+if JWT_COOKIE_SAMESITE == 'None' and not DEBUG:
     JWT_COOKIE_SECURE = True
 
 
@@ -190,3 +211,45 @@ SPECTACULAR_SETTINGS = {
     'DESCRIPTION': 'API for my project',
     'VERSION': '1.0.0',
 }
+
+# Site and social auth settings
+SITE_ID = int(os.getenv('SITE_ID', 1))
+
+AUTHENTICATION_BACKENDS = (
+    'django.contrib.auth.backends.ModelBackend',
+    'allauth.account.auth_backends.AuthenticationBackend',
+)
+
+# Read OAuth client credentials from environment (.env)
+GITHUB_CLIENT_ID = os.getenv('GITHUB_CLIENT_ID')
+GITHUB_CLIENT_SECRET = os.getenv('GITHUB_CLIENT_SECRET') or os.getenv('GITHUB_SECRET')
+
+GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
+GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET')
+GOOGLE_REDIRECT_URI = os.getenv('GOOGLE_REDIRECT_URI', 'http://localhost:3000/oauth/callback?provider=google')
+
+LOGIN_REDIRECT_URL = os.getenv('LOGIN_REDIRECT_URL', '/')
+
+# Optional provider config for django-allauth (keeps defaults minimal)
+SOCIALACCOUNT_PROVIDERS = {
+    'github': {
+        'SCOPE': ['user:email'],
+    }
+}
+
+# MinIO / S3 storage settings (for avatar/media storage)
+USE_MINIO = env_bool('USE_MINIO', False)
+if USE_MINIO:
+    # Ensure django-storages[boto3] is installed
+    DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+    AWS_S3_ENDPOINT_URL = os.getenv('MINIO_ENDPOINT', 'http://127.0.0.1:9000')
+    AWS_ACCESS_KEY_ID = os.getenv('MINIO_ACCESS_KEY', 'minioadmin')
+    AWS_SECRET_ACCESS_KEY = os.getenv('MINIO_SECRET_KEY', 'minioadmin')
+    AWS_STORAGE_BUCKET_NAME = os.getenv('MINIO_BUCKET', 'media')
+    AWS_S3_REGION_NAME = os.getenv('MINIO_REGION', 'us-east-1')
+    AWS_S3_SIGNATURE_VERSION = 's3v4'
+    AWS_S3_ADDRESSING_STYLE = os.getenv('AWS_S3_ADDRESSING_STYLE', 'path')
+    MEDIA_URL = f"{AWS_S3_ENDPOINT_URL}/{AWS_STORAGE_BUCKET_NAME}/"
+else:
+    MEDIA_URL = '/media/'
+    MEDIA_ROOT = BASE_DIR / 'media'

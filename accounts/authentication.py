@@ -6,7 +6,13 @@ class JWTAuthentication(SimpleJWTAuthentication):
     def authenticate(self, request):
         header = self.get_header(request)
         if header is not None:
+            # Try to extract token from Authorization header first. If header is present
+            # but doesn't contain a valid Bearer token, fall back to the access cookie.
             raw_token = self.get_raw_token(header)
+            if raw_token is None:
+                raw_token = request.COOKIES.get(settings.JWT_ACCESS_COOKIE)
+                if raw_token is None:
+                    return None
         else:
             raw_token = request.COOKIES.get(settings.JWT_ACCESS_COOKIE)
             if raw_token is None:

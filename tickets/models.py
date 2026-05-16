@@ -111,6 +111,67 @@ class TicketAuditLog(models.Model):
     new_value = models.TextField(blank=True, null=True)
     changed_at = models.DateTimeField(auto_now_add=True)
 
+
+# Signals: record audit entries on ticket changes
+from django.db.models.signals import pre_save, post_save, pre_delete
+from django.dispatch import receiver
+
+
+@receiver(pre_save, sender=Ticket)
+def ticket_pre_save(sender, instance, **kwargs):
+    # Attach previous state to instance for post_save comparison
+    if not instance._state.adding:
+        try:
+            instance._prev_instance = Ticket.objects.get(id=instance.id)
+        except Ticket.DoesNotExist:
+            instance._prev_instance = None
+
+
+@receiver(post_save, sender=Ticket)
+def ticket_post_save(sender, instance, created, **kwargs):
+    try:
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+    except Exception:
+        User = None
+
+    actor = getattr(instance, '_last_actor', None)
+    # If _last_actor not set, leave actor as None (API views may set it before saving)
+    if created:
+        # Log creation as audit entries for main fields
+        try:
+            TicketAuditLog.objects.create(ticket=instance, actor_user=actor or (User.objects.first() if User else None), field_name='created', old_value='', new_value=str({ 'title': instance.title, 'status': instance.status }))
+        except Exception:
+            pass
+        return
+
+    prev = getattr(instance, '_prev_instance', None)
+    if not prev:
+        return
+
+    fields = ['title', 'description_markdown', 'type', 'priority', 'status', 'labels', 'estimate_story_points', 'estimate_hours']
+    for f in fields:
+        old = getattr(prev, f, None)
+        new = getattr(instance, f, None)
+        if old != new:
+            try:
+                TicketAuditLog.objects.create(ticket=instance, actor_user=actor or (User.objects.first() if User else None), field_name=f, old_value=str(old), new_value=str(new))
+            except Exception:
+                pass
+
+
+@receiver(pre_delete, sender=Ticket)
+def ticket_pre_delete(sender, instance, **kwargs):
+    try:
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+    except Exception:
+        User = None
+    try:
+        TicketAuditLog.objects.create(ticket=instance, actor_user=(User.objects.first() if User else None), field_name='deleted', old_value=str({ 'title': instance.title, 'status': instance.status }), new_value='')
+    except Exception:
+        pass
+
 # =========================
 # Search & Import
 # =========================

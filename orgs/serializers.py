@@ -41,6 +41,8 @@ class WorkspaceSerializer(serializers.ModelSerializer):
             "organization",
             "organization_name",
             "name",
+            "description",
+            "visibility",
             "project_count",
         ]
 

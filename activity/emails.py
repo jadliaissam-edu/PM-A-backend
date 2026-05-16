@@ -34,3 +34,28 @@ def send_mention_notification_email(recipient_email, author_name, content_snippe
         [recipient_email],
         fail_silently=True,
     )
+
+def send_workspace_invitation_email(recipient_email, workspace_name, invite_link):
+    subject = f"Invitation à rejoindre {workspace_name} sur AgileFlow"
+    context = {
+        'workspace_name': workspace_name,
+        'invite_link': invite_link,
+        'app_name': 'AgileFlow'
+    }
+    
+    html_message = render_to_string('orgs/emails/invitation.html', context)
+    plain_message = f"Bonjour,\n\nVous avez été invité à rejoindre le workspace {workspace_name} sur AgileFlow.\n\nCliquez sur ce lien pour accepter : {invite_link}\n\nL'équipe {context['app_name']}"
+    
+    try:
+        send_mail(
+            subject=subject,
+            message=plain_message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[recipient_email],
+            html_message=html_message,
+            fail_silently=False,
+        )
+    except Exception as e:
+        print(f"Failed to send invitation email: {e}")
+        return False
+    return True

@@ -6,6 +6,7 @@ from core.views import (
     MarkAllNotificationsReadView,
     NotificationUnreadCountView,
     NotificationMarkReadBulkView
+    ,FavoriteListCreateView, FavoriteDetailView
 )
 
 urlpatterns = [
@@ -14,4 +15,7 @@ urlpatterns = [
     path("notifications/mark-read-bulk/", NotificationMarkReadBulkView.as_view(), name="notification-mark-read-bulk"),
     path("notifications/<uuid:pk>/read/", MarkNotificationReadView.as_view(), name="notification-read"),
     path("notifications/read-all/", MarkAllNotificationsReadView.as_view(), name="notification-read-all"),
+        # Favorites
+        path("favorites/", FavoriteListCreateView.as_view(), name="favorites-list-create"),
+        path("favorites/<uuid:pk>/", FavoriteDetailView.as_view(), name="favorite-detail"),
 ]

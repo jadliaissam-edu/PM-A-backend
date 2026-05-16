@@ -2,6 +2,7 @@ from django.db import models
 from django.utils import timezone
 import uuid
 from django.conf import settings
+from django.core.validators import FileExtensionValidator
 
 # Commenting out the unused custom User model to avoid confusion with django.contrib.auth.models.User
 # which is currently set as AUTH_USER_MODEL in settings.py.
@@ -35,6 +36,8 @@ class User(AbstractBaseUser):
 class UserProfile(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='profile')
+    # FileField/ImageField stored via configured storage backend (MinIO/S3)
+    avatar = models.ImageField(upload_to='avatars/', blank=True, null=True, validators=[FileExtensionValidator(['jpg', 'jpeg', 'png'])])
     avatar_url = models.URLField(blank=True, null=True)
     bio = models.TextField(blank=True)
     preferences_json = models.JSONField(default=dict)

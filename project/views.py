@@ -9,6 +9,9 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from accounts.authentication import JWTAuthentication
+import csv
+import io
+from django.http import HttpResponse
 
 from orgs.models import Organization, Workspace
 from orgs.serializers import OrganizationTreeSerializer
@@ -280,6 +283,15 @@ class ProjectListCreateView(APIView):
             defaults={"role": RoleName.ADMIN},
         )
         
+        log_activity(
+            actor=request.user,
+            target=project,
+            action="project_create",
+            description=f"Created project '{project.name}'",
+            project_id=project.id,
+            new_value={"name": project.name, "status": project.status}
+        )
+        
         # Also ensure membership in the workspace
         if project.workspace:
             from orgs.models import WorkspaceMember
@@ -326,12 +338,23 @@ class OrganizationReleaseListView(APIView):
     def get(self, request):
         organization_id = request.query_params.get("organization_id")
         if not organization_id:
-            # Fallback to all projects if no org_id (though org context is preferred)
             releases = Release.objects.all().select_related("project").order_by("-target_date")[:10]
         else:
             releases = Release.objects.filter(
                 project__workspace__organization_id=organization_id
             ).select_related("project").order_by("-target_date")
+        
+        return Response(ReleaseSerializer(releases, many=True).data)
+
+
+class WorkspaceReleaseListView(APIView):
+    authentication_classes = [JWTAuthentication, SessionAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, workspace_id):
+        releases = Release.objects.filter(
+            project__workspace_id=workspace_id
+        ).select_related("project").order_by("-target_date")
         
         return Response(ReleaseSerializer(releases, many=True).data)
 
@@ -759,6 +782,113 @@ class ProjectProgressReportView(APIView):
         )
 
 
+class ProjectReportExportView(APIView):
+    authentication_classes = [JWTAuthentication, SessionAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, project_id):
+        fmt = request.query_params.get("format", "csv").lower()
+        project = get_object_or_404(Project, id=project_id)
+
+        # gather same data as ProjectProgressReportView
+        total = project.tickets.count()
+        done = project.tickets.filter(status="done").count()
+        completion_rate = (done / total * 100) if total else 0
+        report = (
+            ProgressReport.objects.filter(scope="project", scope_id=project.id)
+            .order_by("-generated_at")
+            .first()
+        )
+
+        payload = {
+            "project_id": str(project.id),
+            "project_name": project.name,
+            "completion_rate": round(completion_rate, 2),
+            "open_issues": total - done,
+            "velocity": report.velocity if report else 0,
+            "generated_at": report.generated_at.isoformat() if report and report.generated_at else None,
+        }
+
+        if fmt == "csv":
+            buffer = io.StringIO()
+            writer = csv.writer(buffer)
+            # If tickets table exists, emit ticket-level rows
+            if "tickets_ticket" in connection.introspection.table_names():
+                tickets_qs = project.tickets.select_related().prefetch_related("assignments__user").all()
+                writer.writerow(["ticket_id", "title", "status", "estimate_story_points", "assignees", "created_at", "updated_at", "sprint_id"])
+                for t in tickets_qs:
+                    title = getattr(t, "title", getattr(t, "summary", getattr(t, "name", "")))
+                    status_val = getattr(t, "status", "")
+                    estimate = getattr(t, "estimate_story_points", "")
+                    created = getattr(t, "created_at", "")
+                    updated = getattr(t, "updated_at", "")
+                    sprint_ref = getattr(t, "sprint_id", getattr(t, "sprint", None))
+                    sprint_id = sprint_ref.id if hasattr(sprint_ref, "id") else sprint_ref or ""
+                    # collect assignees if assignments relation exists
+                    assignees = ""
+                    try:
+                        assigns = getattr(t, "assignments", None)
+                        if assigns is not None:
+                            assignees = ", ".join([getattr(a.user, "username", str(getattr(a, "user_id", ""))) for a in assigns.all()])
+                    except Exception:
+                        assignees = ""
+                    writer.writerow([str(getattr(t, "id", "")), title, str(status_val), estimate, assignees, created, updated, sprint_id])
+            else:
+                writer.writerow(["key", "value"])
+                for k, v in payload.items():
+                    writer.writerow([k, v])
+            resp = HttpResponse(buffer.getvalue(), content_type="text/csv")
+            resp["Content-Disposition"] = f"attachment; filename=project_{project.id}_report.csv"
+            return resp
+        elif fmt == "pdf":
+            # PDF generation requires reportlab; use platypus for a nicer layout
+            try:
+                from reportlab.lib.pagesizes import A4
+                from reportlab.lib import colors
+                from reportlab.lib.styles import getSampleStyleSheet
+                from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+            except Exception:
+                return Response({"error": "PDF export not available on server (missing dependency)"}, status=status.HTTP_501_NOT_IMPLEMENTED)
+
+            buffer = io.BytesIO()
+            doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=60, bottomMargin=40)
+            styles = getSampleStyleSheet()
+            flow = []
+
+            title = Paragraph(f"Project Report — {project.name}", styles["Title"])
+            flow.append(title)
+            flow.append(Spacer(1, 12))
+
+            meta_table_data = [["Field", "Value"]]
+            for k, v in payload.items():
+                meta_table_data.append([str(k), str(v)])
+
+            table = Table(meta_table_data, hAlign='LEFT', colWidths=[150, 300])
+            table.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#F3F4F6")),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#111827")),
+                        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#E5E7EB")),
+                        ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
+                        ("FONTSIZE", (0, 0), (-1, -1), 10),
+                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ]
+                )
+            )
+
+            flow.append(table)
+            flow.append(Spacer(1, 24))
+
+            doc.build(flow)
+            buffer.seek(0)
+            resp = HttpResponse(buffer.getvalue(), content_type="application/pdf")
+            resp["Content-Disposition"] = f"attachment; filename=project_{project.id}_report.pdf"
+            return resp
+        else:
+            return Response({"error": "Unsupported format"}, status=status.HTTP_400_BAD_REQUEST)
+
+
 class SprintProgressReportView(APIView):
     authentication_classes = [JWTAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticated]
@@ -777,6 +907,104 @@ class SprintProgressReportView(APIView):
                 "velocity": done,
             }
         )
+
+
+class SprintReportExportView(APIView):
+    authentication_classes = [JWTAuthentication, SessionAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, project_id, sprint_id):
+        fmt = request.query_params.get("format", "csv").lower()
+        sprint = get_object_or_404(Sprint, id=sprint_id, board__project_id=project_id)
+
+        total = sprint.tickets.count()
+        done = sprint.tickets.filter(status="done").count()
+        completion_rate = (done / total * 100) if total else 0
+
+        payload = {
+            "project_id": str(project_id),
+            "sprint_id": str(sprint.id),
+            "sprint_name": sprint.name,
+            "completion_rate": round(completion_rate, 2),
+            "open_issues": total - done,
+            "velocity": done,
+        }
+
+        if fmt == "csv":
+            buffer = io.StringIO()
+            writer = csv.writer(buffer)
+            if "tickets_ticket" in connection.introspection.table_names():
+                tickets_qs = sprint.tickets.select_related().prefetch_related("assignments__user").all()
+                writer.writerow(["ticket_id", "title", "status", "estimate_story_points", "assignees", "created_at", "updated_at", "sprint_id"])
+                for t in tickets_qs:
+                    title = getattr(t, "title", getattr(t, "summary", getattr(t, "name", "")))
+                    status_val = getattr(t, "status", "")
+                    estimate = getattr(t, "estimate_story_points", "")
+                    created = getattr(t, "created_at", "")
+                    updated = getattr(t, "updated_at", "")
+                    sprint_ref = getattr(t, "sprint_id", getattr(t, "sprint", None))
+                    sprint_id = sprint_ref.id if hasattr(sprint_ref, "id") else sprint_ref or ""
+                    assignees = ""
+                    try:
+                        assigns = getattr(t, "assignments", None)
+                        if assigns is not None:
+                            assignees = ", ".join([getattr(a.user, "username", str(getattr(a, "user_id", ""))) for a in assigns.all()])
+                    except Exception:
+                        assignees = ""
+                    writer.writerow([str(getattr(t, "id", "")), title, str(status_val), estimate, assignees, created, updated, sprint_id])
+            else:
+                writer.writerow(["key", "value"])
+                for k, v in payload.items():
+                    writer.writerow([k, v])
+            resp = HttpResponse(buffer.getvalue(), content_type="text/csv")
+            resp["Content-Disposition"] = f"attachment; filename=sprint_{sprint.id}_report.csv"
+            return resp
+        elif fmt == "pdf":
+            try:
+                from reportlab.lib.pagesizes import A4
+                from reportlab.lib import colors
+                from reportlab.lib.styles import getSampleStyleSheet
+                from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+            except Exception:
+                return Response({"error": "PDF export not available on server (missing dependency)"}, status=status.HTTP_501_NOT_IMPLEMENTED)
+
+            buffer = io.BytesIO()
+            doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=60, bottomMargin=40)
+            styles = getSampleStyleSheet()
+            flow = []
+
+            title = Paragraph(f"Sprint Report — {sprint.name}", styles["Title"])
+            flow.append(title)
+            flow.append(Spacer(1, 12))
+
+            meta_table_data = [["Field", "Value"]]
+            for k, v in payload.items():
+                meta_table_data.append([str(k), str(v)])
+
+            table = Table(meta_table_data, hAlign='LEFT', colWidths=[150, 300])
+            table.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#F3F4F6")),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#111827")),
+                        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#E5E7EB")),
+                        ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
+                        ("FONTSIZE", (0, 0), (-1, -1), 10),
+                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ]
+                )
+            )
+
+            flow.append(table)
+            flow.append(Spacer(1, 24))
+
+            doc.build(flow)
+            buffer.seek(0)
+            resp = HttpResponse(buffer.getvalue(), content_type="application/pdf")
+            resp["Content-Disposition"] = f"attachment; filename=sprint_{sprint.id}_report.pdf"
+            return resp
+        else:
+            return Response({"error": "Unsupported format"}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class MemberProgressReportView(APIView):
@@ -800,6 +1028,115 @@ class MemberProgressReportView(APIView):
             }
         )
 
+
+class MemberReportExportView(APIView):
+    authentication_classes = [JWTAuthentication, SessionAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, project_id, user_id):
+        fmt = request.query_params.get("format", "csv").lower()
+        project = get_object_or_404(Project, id=project_id)
+
+        tickets = project.tickets.filter(assignments__user_id=user_id).distinct()
+        total = tickets.count()
+        done = tickets.filter(status="done").count()
+        hours = tickets.aggregate(total_hours=Count("time_entries"))["total_hours"] or 0
+        completion_rate = (done / total * 100) if total else 0
+
+        # attempt to get user display
+        try:
+            user_obj = User.objects.get(id=user_id)
+            user_name = f"{user_obj.first_name} {user_obj.last_name}".strip() or user_obj.username
+        except Exception:
+            user_name = str(user_id)
+
+        payload = {
+            "project_id": str(project_id),
+            "project_name": project.name,
+            "user_id": str(user_id),
+            "user_name": user_name,
+            "completion_rate": round(completion_rate, 2),
+            "open_issues": total - done,
+            "velocity": done,
+            "activity_count": hours,
+        }
+
+        if fmt == "csv":
+            buffer = io.StringIO()
+            writer = csv.writer(buffer)
+            if "tickets_ticket" in connection.introspection.table_names():
+                tickets_qs = project.tickets.filter(assignments__user_id=user_id).select_related().prefetch_related("assignments__user").distinct()
+                writer.writerow(["ticket_id", "title", "status", "estimate_story_points", "assignees", "created_at", "updated_at", "sprint_id"])
+                for t in tickets_qs:
+                    title = getattr(t, "title", getattr(t, "summary", getattr(t, "name", "")))
+                    status_val = getattr(t, "status", "")
+                    estimate = getattr(t, "estimate_story_points", "")
+                    created = getattr(t, "created_at", "")
+                    updated = getattr(t, "updated_at", "")
+                    sprint_ref = getattr(t, "sprint_id", getattr(t, "sprint", None))
+                    sprint_id = sprint_ref.id if hasattr(sprint_ref, "id") else sprint_ref or ""
+                    assignees = ""
+                    try:
+                        assigns = getattr(t, "assignments", None)
+                        if assigns is not None:
+                            assignees = ", ".join([getattr(a.user, "username", str(getattr(a, "user_id", ""))) for a in assigns.all()])
+                    except Exception:
+                        assignees = ""
+                    writer.writerow([str(getattr(t, "id", "")), title, str(status_val), estimate, assignees, created, updated, sprint_id])
+            else:
+                writer.writerow(["key", "value"])
+                for k, v in payload.items():
+                    writer.writerow([k, v])
+            resp = HttpResponse(buffer.getvalue(), content_type="text/csv")
+            resp["Content-Disposition"] = f"attachment; filename=member_{user_id}_project_{project_id}_report.csv"
+            return resp
+        elif fmt == "pdf":
+            try:
+                from reportlab.lib.pagesizes import A4
+                from reportlab.lib import colors
+                from reportlab.lib.styles import getSampleStyleSheet
+                from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+            except Exception:
+                return Response({"error": "PDF export not available on server (missing dependency)"}, status=status.HTTP_501_NOT_IMPLEMENTED)
+
+            buffer = io.BytesIO()
+            doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=60, bottomMargin=40)
+            styles = getSampleStyleSheet()
+            flow = []
+
+            title = Paragraph(f"Member Report — {user_name}", styles["Title"])
+            flow.append(title)
+            flow.append(Spacer(1, 12))
+
+            meta_table_data = [["Field", "Value"]]
+            for k, v in payload.items():
+                meta_table_data.append([str(k), str(v)])
+
+            table = Table(meta_table_data, hAlign='LEFT', colWidths=[150, 300])
+            table.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#F3F4F6")),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#111827")),
+                        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#E5E7EB")),
+                        ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
+                        ("FONTSIZE", (0, 0), (-1, -1), 10),
+                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ]
+                )
+            )
+
+            flow.append(table)
+            flow.append(Spacer(1, 24))
+
+            doc.build(flow)
+            buffer.seek(0)
+            resp = HttpResponse(buffer.getvalue(), content_type="application/pdf")
+            resp["Content-Disposition"] = f"attachment; filename=member_{user_id}_project_{project_id}_report.pdf"
+            return resp
+        else:
+            return Response({"error": "Unsupported format"}, status=status.HTTP_400_BAD_REQUEST)
+
 class ProjectDocumentListView(APIView):
     authentication_classes = [JWTAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticated]
@@ -812,7 +1149,15 @@ class ProjectDocumentListView(APIView):
         project = get_object_or_404(Project, id=project_id)
         serializer = ProjectDocumentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save(project=project)
+        doc = serializer.save(project=project)
+        
+        log_activity(
+            actor=request.user,
+            target=doc,
+            action="document_create",
+            description=f"Created document '{doc.title}'",
+            project_id=project_id
+        )
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 class ProjectDocumentDetailView(APIView):

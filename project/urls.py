@@ -21,6 +21,7 @@ from .views import (
     ProjectRoleDetailView,
     ProjectRoleListCreateView,
     ProjectProgressReportView,
+    ProjectReportExportView,
     RecentProjectsView,
     OrganizationReleaseListView,
     SprintCompleteView,
@@ -28,6 +29,7 @@ from .views import (
     SprintListCreateView,
     SprintProgressReportView,
     SprintReportView,
+    SprintReportExportView,
     SprintStartView,
     UserDetailView,
     UserListView,
@@ -35,8 +37,12 @@ from .views import (
     ProjectDocumentDetailView,
     ProjectFileListView,
     ProjectFileDetailView,
+    WorkspaceReleaseListView,
+    MemberProgressReportView,
+    MemberReportExportView,
     health_check,
 )
+from activity.views import ProjectActivityView
 
 
 urlpatterns = [
@@ -142,9 +148,19 @@ urlpatterns = [
         name="project-progress-report",
     ),
     path(
+        "projects/<uuid:project_id>/reports/export/",
+        ProjectReportExportView.as_view(),
+        name="project-report-export",
+    ),
+    path(
         "projects/<uuid:project_id>/sprints/<uuid:sprint_id>/reports/progress/",
         SprintProgressReportView.as_view(),
         name="sprint-progress-report",
+    ),
+    path(
+        "projects/<uuid:project_id>/sprints/<uuid:sprint_id>/reports/export/",
+        SprintReportExportView.as_view(),
+        name="sprint-report-export",
     ),
     path(
         "projects/<uuid:project_id>/members/<int:user_id>/reports/progress/",
@@ -152,9 +168,19 @@ urlpatterns = [
         name="member-progress-report",
     ),
     path(
+        "projects/<uuid:project_id>/members/<int:user_id>/reports/export/",
+        MemberReportExportView.as_view(),
+        name="member-report-export",
+    ),
+    path(
         "orgs/releases/",
         OrganizationReleaseListView.as_view(),
         name="organization-releases",
+    ),
+    path(
+        "workspaces/<uuid:workspace_id>/releases/",
+        WorkspaceReleaseListView.as_view(),
+        name="workspace-releases",
     ),
     path(
         "projects/<uuid:project_id>/documents/",
@@ -175,5 +201,10 @@ urlpatterns = [
         "projects/<uuid:project_id>/files/<uuid:file_id>/",
         ProjectFileDetailView.as_view(),
         name="project-file-detail",
+    ),
+    path(
+        "projects/<uuid:project_id>/activity/",
+        ProjectActivityView.as_view(),
+        name="project-activity",
     ),
 ]

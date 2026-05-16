@@ -13,6 +13,8 @@ class Workspace(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='workspaces')
     name = models.CharField(max_length=255)
+    description = models.TextField(blank=True, null=True)
+    visibility = models.CharField(max_length=20, default='private', choices=[('public', 'Public'), ('private', 'Private')])
 
 
 class Invitation(models.Model):

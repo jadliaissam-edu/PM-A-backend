@@ -11,6 +11,7 @@ from .views import (
     ReleaseDetailView,
     ReleaseIssuesSummaryView,
     ReleaseListCreateView,
+    BulkAssignReleaseView,
     TicketAssigneeDeleteView,
     TicketAssigneeListCreateView,
     TicketAttachmentDeleteView,
@@ -20,6 +21,7 @@ from .views import (
     TicketLinkDeleteView,
     TicketLinkListCreateView,
     TicketMovementListView,
+    TicketAuditLogListView,
     TicketMoveView,
     TicketStatusView,
     TicketTimeEntryListCreateView,
@@ -68,6 +70,10 @@ urlpatterns = [
         "projects/<uuid:project_id>/board/tickets/<uuid:ticket_id>/movements/",
         TicketMovementListView.as_view(),
     ),
+    path(
+        "projects/<uuid:project_id>/tickets/<uuid:ticket_id>/audit/",
+        TicketAuditLogListView.as_view(),
+    ),
     path("projects/<uuid:project_id>/backlog/", BacklogListCreateView.as_view()),
     path(
         "projects/<uuid:project_id>/backlog/<uuid:backlog_item_id>/prioritize/",
@@ -94,5 +100,13 @@ urlpatterns = [
     path(
         "projects/<uuid:project_id>/releases/<uuid:release_id>/issues-summary/",
         ReleaseIssuesSummaryView.as_view(),
+    ),
+    path(
+        "projects/<uuid:project_id>/releases/<uuid:release_id>/assign-tickets/",
+        BulkAssignReleaseView.as_view(),
+    ),
+    path(
+        "projects/<uuid:project_id>/tickets/bulk-assign-release/",
+        BulkAssignReleaseView.as_view(),
     ),
 ]

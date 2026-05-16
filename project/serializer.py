@@ -53,6 +53,8 @@ class ProjectSerializer(serializers.ModelSerializer):
     board_id = serializers.UUIDField(source="board.id", read_only=True)
     member_count = serializers.IntegerField(read_only=True)
     ticket_count = serializers.IntegerField(read_only=True)
+    sprint_count = serializers.IntegerField(read_only=True)
+    release_count = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = Project
@@ -71,6 +73,8 @@ class ProjectSerializer(serializers.ModelSerializer):
             "board_id",
             "member_count",
             "ticket_count",
+            "sprint_count",
+            "release_count",
         ]
         read_only_fields = [
             "id",
@@ -79,6 +83,8 @@ class ProjectSerializer(serializers.ModelSerializer):
             "board_id",
             "member_count",
             "ticket_count",
+            "sprint_count",
+            "release_count",
         ]
 
     def get_organization_id(self, obj):
@@ -151,6 +157,8 @@ class SprintSerializer(serializers.ModelSerializer):
 
 
 class ReleaseSerializer(serializers.ModelSerializer):
+    created_by_name = serializers.CharField(source="created_by.get_full_name", read_only=True)
+    modified_by_name = serializers.CharField(source="modified_by.get_full_name", read_only=True)
     project_name = serializers.CharField(source="project.name", read_only=True)
 
     class Meta:
@@ -160,11 +168,19 @@ class ReleaseSerializer(serializers.ModelSerializer):
             "project",
             "project_name",
             "tag",
+            "start_date",
+            "end_date",
             "target_date",
             "description",
             "status",
+            "created_by",
+            "modified_by",
+            "created_by_name",
+            "modified_by_name",
+            "created_at",
+            "updated_at",
         ]
-        read_only_fields = ["id", "project_name"]
+        read_only_fields = ["id", "project", "project_name", "created_by", "modified_by", "created_at", "updated_at"]
 
 
 class ProjectDocumentSerializer(serializers.ModelSerializer):

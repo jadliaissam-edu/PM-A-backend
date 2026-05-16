@@ -28,3 +28,11 @@ class UserActivityView(AuthenticatedAPIView):
     def get(self, request):
         activities = ActivityLog.objects.filter(actor=request.user).order_by("-created_at")
         return Response(ActivityLogSerializer(activities, many=True).data)
+
+class AuditLogView(AuthenticatedAPIView):
+    def get(self, request):
+        # Fetch activity logs for all projects the user is a member of
+        from project.models import Project
+        user_projects = Project.objects.filter(members__user=request.user)
+        activities = ActivityLog.objects.filter(project_id__in=user_projects.values_list('id', flat=True)).order_by("-created_at")
+        return Response(ActivityLogSerializer(activities, many=True).data)

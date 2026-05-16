@@ -36,6 +36,11 @@ from .serializer import (
     RegisterSerializer,
     OAuthLoginSerializer,
 )
+from django.contrib.contenttypes.models import ContentType
+from activity.models import ActivityLog
+
+from .serializer import ProfileSerializer
+from .models import UserProfile
 
 
 # --- Auth & User Management Views ---
@@ -84,17 +89,79 @@ def clear_access_cookie(response):
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
 
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+
+        # Generate JWT tokens for the newly created user
+        refresh = RefreshToken.for_user(user)
+        access_token = str(refresh.access_token)
+        refresh_token = str(refresh)
+
+        response_data = {
+            'refresh': refresh_token,
+            'access': access_token,
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'first_name': getattr(user, 'first_name', ''),
+                'last_name': getattr(user, 'last_name', ''),
+            }
+        }
+
+        response = Response(response_data, status=status.HTTP_201_CREATED)
+
+        # Set cookies for access and refresh tokens
+        set_access_cookie(response, access_token)
+        set_refresh_cookie(response, refresh_token)
+
+        return response
+
 class EmailTokenObtainPairView(TokenObtainPairView):
     serializer_class = EmailTokenObtainPairSerializer
 
     def post(self, request, *args, **kwargs):
-        response = super().post(request, *args, **kwargs)
-        access_token = response.data.get("access")
-        refresh_token = response.data.get("refresh")
+        # Validate credentials using the serializer so we can enforce MFA when enabled.
+        serializer = self.get_serializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        user = getattr(serializer, 'user', None)
+
+        # If user has MFA enabled, require MFA verification before issuing tokens.
+        if user:
+            try:
+                mfa_config = MFAConfig.objects.get(user=user)
+            except MFAConfig.DoesNotExist:
+                mfa_config = None
+
+            if mfa_config and mfa_config.is_enabled:
+                # Do not issue tokens yet; client must call /auth/mfa/verify/ with issue_tokens=true
+                return Response({'mfa_required': True, 'email': request.data.get('email')}, status=status.HTTP_200_OK)
+
+        # No MFA required — issue tokens and set cookies.
+        data = serializer.validated_data
+        access_token = data.get('access')
+        refresh_token = data.get('refresh')
+        response = Response(data, status=status.HTTP_200_OK)
         if access_token:
             set_access_cookie(response, access_token)
         if refresh_token:
             set_refresh_cookie(response, refresh_token)
+
+        # Log login activity
+        try:
+            if user:
+                ct = ContentType.objects.get_for_model(user.__class__)
+                ActivityLog.objects.create(
+                    actor=user,
+                    content_type=ct,
+                    object_id=user.id,
+                    action='user.login',
+                    description='User logged in via email/password',
+                )
+        except Exception:
+            pass
         return response
 
 
@@ -152,6 +219,19 @@ class LogoutView(APIView):
 
         clear_access_cookie(response)
         clear_refresh_cookie(response)
+        # Log logout if user is authenticated
+        try:
+            if request.user and request.user.is_authenticated:
+                ct = ContentType.objects.get_for_model(request.user.__class__)
+                ActivityLog.objects.create(
+                    actor=request.user,
+                    content_type=ct,
+                    object_id=request.user.id,
+                    action='user.logout',
+                    description='User logged out via API',
+                )
+        except Exception:
+            pass
         return response
 
 # --- Password Reset Views ---
@@ -328,6 +408,7 @@ class MFAVerifyView(APIView):
         serializer.is_valid(raise_exception=True)
         email = serializer.validated_data['email']
         token = serializer.validated_data['token']
+        issue_tokens = serializer.validated_data.get('issue_tokens', False)
 
         try:
             user = User.objects.get(email=email)
@@ -348,6 +429,30 @@ class MFAVerifyView(APIView):
         if not mfa_config.is_enabled:
             mfa_config.is_enabled = True
             mfa_config.save(update_fields=['is_enabled'])
+
+        # Optionally issue JWT tokens (used when verifying during login flow)
+        if issue_tokens:
+            refresh = RefreshToken.for_user(user)
+            access_token = str(refresh.access_token)
+            refresh_token = str(refresh)
+            response = Response(
+                {
+                    'message': 'MFA verified and tokens issued.',
+                    'access': access_token,
+                    'refresh': refresh_token,
+                    'user': {
+                        'id': user.id,
+                        'username': user.username,
+                        'email': user.email,
+                        'first_name': getattr(user, 'first_name', ''),
+                        'last_name': getattr(user, 'last_name', ''),
+                    },
+                },
+                status=status.HTTP_200_OK,
+            )
+            set_access_cookie(response, access_token)
+            set_refresh_cookie(response, refresh_token)
+            return response
 
         return Response({'message': 'MFA verified and enabled.'}, status=status.HTTP_200_OK)
 
@@ -402,13 +507,28 @@ class OAuthLoginView(APIView):
             'user': {
                 'id': user.id,
                 'email': user.email,
-                'username': user.username
+                'username': user.username,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
             }
         }, status=status.HTTP_200_OK)
 
         # Set cookies
         set_access_cookie(response, str(refresh.access_token))
         set_refresh_cookie(response, str(refresh))
+
+        # Log OAuth login activity
+        try:
+            ct = ContentType.objects.get_for_model(user.__class__)
+            ActivityLog.objects.create(
+                actor=user,
+                content_type=ct,
+                object_id=user.id,
+                action=f'oauth.login.{provider}',
+                description=f'User logged in via {provider}',
+            )
+        except Exception:
+            pass
 
         return response
 
@@ -472,3 +592,34 @@ class OAuthLoginView(APIView):
             headers={'Authorization': f'Bearer {access_token}'}
         )
         return user_res.json()
+
+
+
+class ProfileView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        profile, _ = UserProfile.objects.get_or_create(user=request.user)
+        serializer = ProfileSerializer(profile)
+        return Response(serializer.data)
+
+    def patch(self, request):
+        profile, _ = UserProfile.objects.get_or_create(user=request.user)
+        serializer = ProfileSerializer(profile, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        # If avatar was uploaded, set avatar_url to storage URL for convenience
+        if profile.avatar:
+            try:
+                serializer_data = serializer.data
+                avatar_field = profile.avatar.url
+                profile.avatar_url = avatar_field
+                profile.save(update_fields=['avatar_url'])
+                serializer_data['avatar_url'] = avatar_field
+                return Response(serializer_data)
+            except Exception:
+                pass
+
+        return Response(serializer.data)
+    

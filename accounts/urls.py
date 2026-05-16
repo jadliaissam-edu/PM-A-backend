@@ -4,16 +4,18 @@ from .views import  EmailTokenObtainPairView, PasswordResetRequestView
 from .views import  PasswordResetConfirmView 
 from .views import PasswordResetVerifyOTPView
 from .views import MFASetupView, MFAVerifyView
-from .views import  RegisterView, LogoutView, CookieTokenRefreshView, OAuthLoginView
+from .views import  RegisterView, LogoutView, CookieTokenRefreshView, OAuthLoginView, ProfileView
 urlpatterns = [ 
     path('login/', EmailTokenObtainPairView.as_view(), name='token_obtain_pair'), 
     path('token/refresh/', CookieTokenRefreshView.as_view(), name='token_refresh'), 
     path('register/', RegisterView.as_view(), name='register'),
     path('oauth/login/', OAuthLoginView.as_view(), name='oauth-login'),
     path('mfa/setup/', MFASetupView.as_view(), name='mfa-setup'),
-
     path('mfa/enable/', MFASetupView.as_view(), name='mfa-enable'),
     path('mfa/verify/', MFAVerifyView.as_view(), name='mfa-verify'),
+    # legacy alias used by frontend services
+    path('verify-otp/', MFAVerifyView.as_view(), name='verify-otp'),
+    path('profile/', ProfileView.as_view(), name='profile'),
     path('reset-password/', PasswordResetRequestView.as_view(), name='reset-password-request'),
     path('reset-password/verify-otp/', PasswordResetVerifyOTPView.as_view(), name='reset-password-verify-otp'),
     path('reset-password/confirm/', PasswordResetConfirmView.as_view(), name='reset-password-confirm'),

@@ -4,6 +4,16 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 user = get_user_model()
 
+from .models import UserProfile
+
+
+class ProfileSerializer(serializers.ModelSerializer):
+    avatar_url = serializers.CharField(read_only=True)
+
+    class Meta:
+        model = UserProfile
+        fields = ['id', 'avatar', 'avatar_url', 'bio', 'preferences_json']
+
 class PasswordResetRequestSerializer(serializers.Serializer):
     email = serializers.EmailField()
 
@@ -26,20 +36,26 @@ class MFASetupSerializer(serializers.Serializer):
 class MFAVerifySerializer(serializers.Serializer):
     email = serializers.EmailField()
     token = serializers.CharField(max_length=6)
+    # If true, after successful MFA verification issue JWT tokens and set cookies.
+    issue_tokens = serializers.BooleanField(required=False, default=False)
 
 
 class RegisterSerializer(serializers.ModelSerializer):
     class Meta:
         model = user
-        fields = ['username', 'email', 'password']
+        fields = ['username', 'email', 'password', 'first_name', 'last_name']
         extra_kwargs = {'password': {'write_only': True}}
     
     def create(self, validated_data):
         user_model = get_user_model()
+        first_name = validated_data.get('first_name', '')
+        last_name = validated_data.get('last_name', '')
         new_user = user_model.objects.create_user(
             username=validated_data['username'],
             email=validated_data['email'],
             password=validated_data['password'],
+            first_name=first_name,
+            last_name=last_name,
         )
         return new_user    
 
@@ -96,6 +112,8 @@ class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
             "user_id": user_obj.id,
             "username": user_obj.username,
             "email": user_obj.email,
+            "first_name": getattr(user_obj, 'first_name', ''),
+            "last_name": getattr(user_obj, 'last_name', ''),
         }
 
 class OAuthLoginSerializer(serializers.Serializer):

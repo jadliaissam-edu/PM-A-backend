@@ -1,13 +1,13 @@
 asgiref==3.11.1
-Django==6.0.4
+Django==5.2.14
 sqlparse==0.5.5
 python-dotenv
-djangorestframework-simplejwt 
+djangorestframework-simplejwt
 django-cors-headers
 django-debug-toolbar
 django-oauth-toolkit
-pyotp 
-qrcode 
+pyotp
+qrcode
 pillow
 drf-spectacular
 gunicorn

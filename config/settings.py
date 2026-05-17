@@ -342,7 +342,7 @@ CELERY_RESULT_SERIALIZER = 'json'
 
 if not DEBUG:
 
-    SECURE_SSL_REDIRECT = True
+    SECURE_SSL_REDIRECT = False  # Disabled because Nginx handles the SSL redirect and terminates HTTPS!
 
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
